@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Stay Fit" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <title>Stay Fit — Personal Training</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React + ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel for JSX (development; can be removed if precompiled) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Lucide icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
+    html, body { font-family: 'Inter', system-ui, sans-serif; background: #fafaf9; overscroll-behavior: none; }
+    body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+    .display-font { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+    .brand-font { font-family: 'Fraunces', serif; font-weight: 800; letter-spacing: 0.04em; }
+    .pulse-dot { animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .slide-up { animation: slideUp 0.3s ease-out; }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .float-in { animation: floatIn 0.6s ease-out; }
+    @keyframes floatIn { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .form-input { width: 100%; background: white; border: 1px solid #e7e5e4; border-radius: 12px; padding: 12px 14px; font-size: 15px; color: #0a0a0a; outline: none; transition: border-color 0.15s; font-family: 'Inter', sans-serif; }
+    .form-input:focus { border-color: #0a0a0a; }
+    .spinner { width: 24px; height: 24px; border: 2.5px solid #e7e5e4; border-top-color: #0a0a0a; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @supports (-webkit-touch-callout: none) { input, select, textarea { font-size: 16px !important; } }
+    .grain { position: relative; }
+    .grain::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.06; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); mix-blend-mode: overlay; }
+    .brand-stripe { background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%); }
+    .glow-amber { box-shadow: 0 0 40px -10px rgba(251, 191, 36, 0.4); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // ⚠️ REPLACE THESE WITH YOUR OWN FIREBASE PROJECT CONFIG
+    const firebaseConfig = {
+      apiKey: "AIzaSyDWSjn_sKN7sRiMUb5gc7g1hfi8qksk5xw",
+      authDomain: "stayfit-app-95f0c.firebaseapp.com",
+      projectId: "stayfit-app-95f0c",
+      storageBucket: "stayfit-app-95f0c.firebasestorage.app",
+      messagingSenderId: "503264118557",
+      appId: "1:503264118557:web:94ed475ac770fc1aef03f4"
+    };
+
+    // ⚠️ TRAINER PIN — change this to whatever you want before deploying.
+    // Only people who know this PIN can access the trainer view.
+    // Members never need to enter it; they only enter their phone number.
+    window.TRAINER_PIN = "1234";
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // Expose to global for the React app to use
+    window.firebaseDB = db;
+    window.firebaseAuth = auth;
+    window.firebaseHelpers = {
+      collection, doc, setDoc, deleteDoc, onSnapshot, query, where,
+      signInAnonymously, onAuthStateChanged
+    };
+
+    // Sign in anonymously so Firestore rules can require auth
+    signInAnonymously(auth).catch((err) => {
+      console.error('Auth error:', err);
+    });
+
+    // Service worker for offline
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+
+  <script type="text/babel" data-type="module">
+    const { useState, useEffect } = React;
+
+    // Wait for Firebase to initialize
+    const waitForFirebase = () => new Promise((resolve) => {
+      const check = () => {
+        if (window.firebaseDB && window.firebaseHelpers) resolve();
+        else setTimeout(check, 50);
+      };
+      check();
+    });
+
+    // ===== Storage abstraction (Firestore) =====
+    // Trainer ID is the gym key — all members/sessions/payments belong to this trainer.
+    // We use a single shared trainer ID for simplicity (one trainer per deployment).
+    // For multi-trainer, you'd derive this from auth user.
+    const TRAINER_ID = 'default_trainer';
+
+    const fb = () => window.firebaseHelpers;
+    const db = () => window.firebaseDB;
+
+    const Storage = {
+      onCollection(name, callback) {
+        const { collection, onSnapshot, query, where } = fb();
+        const q = query(collection(db(), name), where('trainerId', '==', TRAINER_ID));
+        return onSnapshot(q, (snap) => {
+          const items = [];
+          snap.forEach((d) => items.push({ id: d.id, ...d.data() }));
+          callback(items);
+        }, (err) => console.error(`Listen error on ${name}:`, err));
+      },
+      async save(name, item) {
+        const { doc, setDoc } = fb();
+        const id = item.id || `${name}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+        const data = { ...item, id, trainerId: TRAINER_ID };
+        await setDoc(doc(db(), name, id), data);
+        return data;
+      },
+      async delete(name, id) {
+        const { doc, deleteDoc } = fb();
+        await deleteDoc(doc(db(), name, id));
+      },
+    };
+
+    // ===== Icons =====
+    const Icon = ({ name, size = 20, className = '', strokeWidth = 2 }) => {
+      const ref = React.useRef(null);
+      React.useEffect(() => {
+        if (ref.current && window.lucide) {
+          ref.current.innerHTML = '';
+          const svg = window.lucide.createElement(window.lucide.icons[name] || window.lucide.icons['Circle']);
+          svg.setAttribute('width', size);
+          svg.setAttribute('height', size);
+          svg.setAttribute('stroke-width', strokeWidth);
+          ref.current.appendChild(svg);
+        }
+      }, [name, size, strokeWidth]);
+      return <span ref={ref} className={`inline-flex ${className}`} style={{ width: size, height: size }} />;
+    };
+
+    // ===== Main App =====
+    function App() {
+      const [authReady, setAuthReady] = useState(false);
+      const [mode, setMode] = useState(null);
+      const [memberPhone, setMemberPhone] = useState('');
+      const [members, setMembers] = useState([]);
+      const [sessions, setSessions] = useState([]);
+      const [payments, setPayments] = useState([]);
+      const [measurements, setMeasurements] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        const { onAuthStateChanged } = fb();
+        const unsub = onAuthStateChanged(window.firebaseAuth, (user) => {
+          if (user) setAuthReady(true);
+        });
+        return unsub;
+      }, []);
+
+      useEffect(() => {
+        if (!authReady) return;
+        const u1 = Storage.onCollection('members', setMembers);
+        const u2 = Storage.onCollection('sessions', setSessions);
+        const u3 = Storage.onCollection('payments', setPayments);
+        const u4 = Storage.onCollection('measurements', setMeasurements);
+        try {
+          const saved = JSON.parse(localStorage.getItem('app:mode') || 'null');
+          if (saved?.mode === 'trainer') setMode('trainer');
+          else if (saved?.mode === 'member' && saved.phone) { setMode('member'); setMemberPhone(saved.phone); }
+        } catch (e) {}
+        setLoading(false);
+        return () => { u1(); u2(); u3(); u4(); };
+      }, [authReady]);
+
+      const persistMode = (m, phone = '') => {
+        try { localStorage.setItem('app:mode', JSON.stringify({ mode: m, phone })); } catch (e) {}
+      };
+
+      const enterTrainer = () => { setMode('trainer'); persistMode('trainer'); };
+      const enterMember = (phone) => { setMode('member'); setMemberPhone(phone); persistMode('member', phone); };
+      const exitMode = () => { setMode(null); setMemberPhone(''); persistMode(''); };
+
+      if (!authReady || loading) {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-b from-neutral-900 to-black" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl" />
+            <div className="relative flex flex-col items-center">
+              <img src="logo-white.png" alt="Stay Fit" className="w-40 h-auto mb-8 opacity-90" />
+              <div className="spinner mb-4" style={{ borderTopColor: '#fbbf24' }} />
+              <div className="text-amber-400/70 font-light tracking-[0.3em] text-xs">CONNECTING</div>
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === null) return <RoleSelect members={members} onTrainer={enterTrainer} onMember={enterMember} />;
+      if (mode === 'trainer') {
+        return <TrainerApp members={members} sessions={sessions} payments={payments} measurements={measurements} onExit={exitMode} />;
+      }
+      return <MemberApp phone={memberPhone} members={members} sessions={sessions} payments={payments} measurements={measurements} onExit={exitMode} />;
+    }
+
+    // ===== Role Select =====
+    function RoleSelect({ members, onTrainer, onMember }) {
+      const [showMemberLogin, setShowMemberLogin] = useState(false);
+      const [showTrainerLogin, setShowTrainerLogin] = useState(false);
+      const [pin, setPin] = useState('');
+      const [pinError, setPinError] = useState('');
+      const [phone, setPhone] = useState('');
+      const [error, setError] = useState('');
+
+      const handleMemberLogin = () => {
+        const cleaned = phone.replace(/[^0-9]/g, '');
+        if (cleaned.length < 6) { setError('Enter a valid phone number'); return; }
+        const last10 = cleaned.slice(-10);
+        const member = members.find((m) => (m.phone || '').replace(/[^0-9]/g, '').endsWith(last10));
+        if (!member) { setError('No member found. Ask your trainer to add you.'); return; }
+        onMember(member.phone);
+      };
+
+      const handleTrainerLogin = () => {
+        if (pin === window.TRAINER_PIN) {
+          setShowTrainerLogin(false);
+          setPin('');
+          setPinError('');
+          onTrainer();
+        } else {
+          setPinError('Incorrect PIN');
+          setPin('');
+        }
+      };
+
+      return (
+        <div className="min-h-screen bg-neutral-950 flex flex-col text-white relative overflow-hidden">
+          {/* Background atmosphere */}
+          <div className="absolute inset-0 bg-gradient-to-b from-neutral-900 via-neutral-950 to-black" />
+          <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-400/5 rounded-full blur-3xl" />
+          
+          <div className="relative flex-1 flex flex-col items-center justify-center px-6 fade-in">
+            {/* Logo */}
+            <div className="mb-8 float-in">
+              <img src="logo-white.png" alt="Stay Fit" className="w-56 h-auto" />
+            </div>
+            
+            <div className="text-center">
+              <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-amber-400 font-bold mb-3">
+                <span className="w-6 h-px bg-amber-400" /> Personal Training <span className="w-6 h-px bg-amber-400" />
+              </div>
+              <h1 className="display-font text-3xl font-semibold text-white leading-tight">
+                Every rep counts.<br/><span className="text-amber-400">Every member matters.</span>
+              </h1>
+            </div>
+
+            <div className="w-full max-w-sm mt-10 space-y-3">
+              <button onClick={() => { setShowTrainerLogin(true); setPin(''); setPinError(''); }} className="w-full bg-amber-400 text-neutral-900 rounded-2xl p-5 flex items-center justify-between active:scale-[0.98] transition glow-amber">
+                <div className="text-left">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-neutral-800 font-bold">I'm the</div>
+                  <div className="display-font text-2xl font-semibold mt-0.5">Trainer</div>
+                  <div className="text-xs text-neutral-700 mt-0.5">Manage members, sessions & payments</div>
+                </div>
+                <Icon name="ChevronRight" size={24} className="text-neutral-900" />
+              </button>
+
+              <button onClick={() => setShowMemberLogin(true)} className="w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-5 flex items-center justify-between active:scale-[0.98] transition">
+                <div className="text-left">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-bold">I'm a</div>
+                  <div className="display-font text-2xl font-semibold text-white mt-0.5">Member</div>
+                  <div className="text-xs text-neutral-400 mt-0.5">View my progress & schedule</div>
+                </div>
+                <Icon name="ChevronRight" size={24} className="text-neutral-500" />
+              </button>
+            </div>
+            
+            <div className="mt-12 text-[10px] uppercase tracking-[0.3em] text-neutral-600 font-semibold">
+              Train · Track · Transform
+            </div>
+          </div>
+
+          {showMemberLogin && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-end" onClick={() => setShowMemberLogin(false)}>
+              <div className="bg-stone-50 rounded-t-3xl w-full slide-up" onClick={(e) => e.stopPropagation()}>
+                <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+                  <h2 className="display-font text-xl font-semibold text-neutral-900">Member Login</h2>
+                  <button onClick={() => setShowMemberLogin(false)} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">Phone number</label>
+                    <input type="tel" inputMode="numeric" value={phone}
+                      onChange={(e) => { setPhone(e.target.value); setError(''); }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleMemberLogin()}
+                      className="form-input" placeholder="Enter your phone number" autoFocus />
+                    {error && <div className="text-xs text-red-600 mt-2 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> {error}</div>}
+                  </div>
+                  <button onClick={handleMemberLogin} className="w-full bg-neutral-900 text-white rounded-2xl py-4 font-semibold active:scale-[0.98] transition">Continue</button>
+                  <p className="text-xs text-stone-500 text-center">Your trainer must add you first using this phone number.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showTrainerLogin && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-end" onClick={() => { setShowTrainerLogin(false); setPin(''); setPinError(''); }}>
+              <div className="bg-stone-50 rounded-t-3xl w-full slide-up" onClick={(e) => e.stopPropagation()}>
+                <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+                  <h2 className="display-font text-xl font-semibold text-neutral-900">Trainer Access</h2>
+                  <button onClick={() => { setShowTrainerLogin(false); setPin(''); setPinError(''); }} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center gap-2 text-stone-600">
+                    <Icon name="Lock" size={14} />
+                    <p className="text-xs">Enter your PIN to access the trainer view</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">PIN</label>
+                    <input type="password" inputMode="numeric" value={pin}
+                      onChange={(e) => { setPin(e.target.value); setPinError(''); }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleTrainerLogin()}
+                      className="form-input text-center tracking-[0.5em] text-lg" placeholder="••••" autoFocus maxLength={20} />
+                    {pinError && <div className="text-xs text-red-600 mt-2 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> {pinError}</div>}
+                  </div>
+                  <button onClick={handleTrainerLogin} className="w-full bg-amber-400 text-neutral-900 rounded-2xl py-4 font-semibold active:scale-[0.98] transition">Unlock</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ===== Member App =====
+    function MemberApp({ phone, members, sessions, payments, measurements, onExit }) {
+      const last10 = phone.replace(/[^0-9]/g, '').slice(-10);
+      const member = members.find((m) => (m.phone || '').replace(/[^0-9]/g, '').endsWith(last10));
+
+      if (!member) {
+        return (
+          <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-6">
+            <Icon name="AlertCircle" size={40} className="text-amber-500 mb-3" />
+            <div className="display-font text-xl text-neutral-900">Account not found</div>
+            <div className="text-sm text-stone-500 mt-1 text-center">Your trainer may have removed this number.</div>
+            <button onClick={onExit} className="mt-6 px-6 py-3 bg-neutral-950 text-white rounded-full font-semibold">Back to start</button>
+          </div>
+        );
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const mySessions = sessions.filter((s) => s.memberId === member.id);
+      const myPayments = payments.filter((p) => p.memberId === member.id);
+      const myMeasurements = [...(measurements || []).filter((m) => m.memberId === member.id)]
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const completedSessions = mySessions.filter((s) => s.status === 'completed');
+      const upcomingSessions = mySessions
+        .filter((s) => s.date >= today && s.status !== 'cancelled' && s.status !== 'completed')
+        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+      const totalPaid = myPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+      const isPerSession = member.billingMode === 'per_session';
+      const sessionRate = Number(member.sessionRate || 0);
+      const packageAmount = Number(member.packageAmount || 0);
+      const totalCharged = isPerSession ? sessionRate * completedSessions.length : packageAmount;
+      const due = totalCharged - totalPaid;
+      const sessionsTotal = Number(member.sessionsTotal || 0);
+      const progress = sessionsTotal > 0 ? Math.min(100, (completedSessions.length / sessionsTotal) * 100) : 0;
+
+      const latestMeasurement = myMeasurements[0];
+      const previousMeasurement = myMeasurements[1];
+      const weightDelta = latestMeasurement && previousMeasurement
+        ? Number(latestMeasurement.weight) - Number(previousMeasurement.weight)
+        : null;
+
+      const completedDates = [...new Set(completedSessions.map((s) => s.date))].sort().reverse();
+      let streak = 0;
+      for (let i = 0; i < completedDates.length; i++) {
+        const d = new Date(completedDates[i]);
+        const expected = new Date(); expected.setDate(expected.getDate() - i);
+        const diff = Math.abs(d - expected) / (1000 * 60 * 60 * 24);
+        if (diff < 7) streak++; else break;
+      }
+
+      return (
+        <div className="min-h-screen bg-stone-50 pb-12">
+          <header className="px-5 pt-6 pb-10 bg-neutral-950 text-white rounded-b-[2rem] relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-48 h-48 bg-amber-500/15 rounded-full blur-3xl" />
+            <div className="absolute -bottom-20 -left-10 w-48 h-48 bg-amber-400/5 rounded-full blur-3xl" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-6">
+                <button onClick={onExit} className="flex items-center gap-1 text-xs text-neutral-400 font-medium active:text-white">
+                  <Icon name="LogOut" size={14} /> Switch
+                </button>
+                <div className="flex items-center gap-2">
+                  <img src="logo-white.png" alt="Stay Fit" className="h-5 w-auto opacity-90" />
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-amber-400 font-bold">Member</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-amber-400 flex items-center justify-center text-neutral-900 font-bold text-xl display-font flex-shrink-0 glow-amber">
+                  {member.name?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-neutral-400">Welcome back,</div>
+                  <div className="display-font text-2xl font-semibold truncate text-white">{member.name}</div>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="px-5 -mt-5 space-y-4">
+            <div className="bg-white rounded-3xl p-5 border border-stone-200 shadow-sm fade-in">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs uppercase tracking-wider text-stone-500 font-semibold">Your Progress</div>
+                <div className="flex items-center gap-1 text-xs font-semibold text-amber-700">
+                  <Icon name="Flame" size={14} /> {streak} streak
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <div className="display-font text-6xl font-semibold text-neutral-900 leading-none">{completedSessions.length}</div>
+                {sessionsTotal > 0 && <div className="text-stone-500 text-lg">/ {sessionsTotal}</div>}
+              </div>
+              <div className="text-xs text-stone-500 mt-1">sessions completed</div>
+              {sessionsTotal > 0 && (
+                <>
+                  <div className="mt-4 h-2 bg-stone-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-700" style={{ width: `${progress}%` }} />
+                  </div>
+                  <div className="flex justify-between mt-1.5 text-[10px] text-stone-500">
+                    <span>{Math.round(progress)}% done</span>
+                    <span>{sessionsTotal - completedSessions.length} remaining</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <StatTile iconName="Check" value={completedSessions.length} label="Completed" tone="emerald" />
+              <StatTile iconName="Calendar" value={upcomingSessions.length} label="Upcoming" tone="stone" />
+              <StatTile iconName="Award" value={mySessions.length} label="Total" tone="amber" />
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-stone-200">
+              <div className="text-xs uppercase tracking-wider text-stone-500 font-semibold mb-3">Your Package</div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="display-font text-xl font-semibold text-neutral-900">{isPerSession ? 'Per Session' : member.packageType}</div>
+                  {member.location && <div className="text-xs text-stone-500 mt-0.5 flex items-center gap-1"><Icon name="MapPin" size={11} /> {member.location}</div>}
+                </div>
+                <div className="text-right">
+                  {isPerSession ? (
+                    <>
+                      <div className="display-font text-xl font-semibold text-neutral-900">₹{sessionRate.toLocaleString('en-IN')}</div>
+                      <div className="text-[10px] text-stone-500 uppercase tracking-wider">per session</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="display-font text-xl font-semibold text-neutral-900">₹{packageAmount.toLocaleString('en-IN')}</div>
+                      <div className="text-[10px] text-stone-500 uppercase tracking-wider">total</div>
+                    </>
+                  )}
+                </div>
+              </div>
+              {member.packageStart && member.packageEnd && (
+                <div className="mt-4 pt-4 border-t border-stone-100 flex justify-between text-xs">
+                  <div><div className="text-stone-500">Started</div><div className="font-semibold text-neutral-900 mt-0.5">{new Date(member.packageStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div></div>
+                  <div className="text-right"><div className="text-stone-500">{isPerSession ? 'Until' : 'Ends'}</div><div className="font-semibold text-neutral-900 mt-0.5">{new Date(member.packageEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div></div>
+                </div>
+              )}
+            </div>
+
+            <div className={`rounded-2xl p-5 border ${due > 0 ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200' : 'bg-emerald-50 border-emerald-100'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-wider font-semibold text-stone-600">Payment Status</div>
+                  <div className={`display-font text-2xl font-semibold mt-1 ${due > 0 ? 'text-amber-900' : 'text-emerald-900'}`}>
+                    {due > 0 ? `₹${due.toLocaleString('en-IN')} due` : due < 0 ? `₹${Math.abs(due).toLocaleString('en-IN')} credit` : 'All cleared'}
+                  </div>
+                  <div className="text-xs text-stone-600 mt-0.5">
+                    {isPerSession
+                      ? `Paid ₹${totalPaid.toLocaleString('en-IN')} of ₹${totalCharged.toLocaleString('en-IN')} (${completedSessions.length} × ₹${sessionRate})`
+                      : `Paid ₹${totalPaid.toLocaleString('en-IN')} of ₹${packageAmount.toLocaleString('en-IN')}`}
+                  </div>
+                </div>
+                <Icon name={due === 0 ? "Check" : "AlertCircle"} size={32} className={due === 0 ? "text-emerald-600" : "text-amber-600"} />
+              </div>
+              <div className="mt-3 h-1.5 bg-white/60 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${due > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, (totalPaid / Math.max(1, totalCharged)) * 100)}%` }} />
+              </div>
+            </div>
+
+            {/* Body measurements (read-only for member) */}
+            {latestMeasurement && (
+              <div className="bg-gradient-to-br from-neutral-950 to-neutral-900 text-white rounded-2xl p-5 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl" />
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-amber-400 font-bold">Body Stats · {new Date(latestMeasurement.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+                    {weightDelta !== null && Math.abs(weightDelta) > 0.05 && (
+                      <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${weightDelta < 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                        {weightDelta > 0 ? '+' : ''}{weightDelta.toFixed(1)} kg
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">Weight</div>
+                      <div className="display-font text-2xl font-semibold mt-0.5">{Number(latestMeasurement.weight).toFixed(1)}<span className="text-sm text-neutral-400 ml-1">kg</span></div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">Height</div>
+                      <div className="display-font text-2xl font-semibold mt-0.5">{Number(latestMeasurement.height).toFixed(0)}<span className="text-sm text-neutral-400 ml-1">cm</span></div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">BMI</div>
+                      <div className="display-font text-2xl font-semibold mt-0.5 text-amber-400">{calcBMI(latestMeasurement.weight, latestMeasurement.height)}</div>
+                      <div className="text-[9px] text-neutral-400 uppercase tracking-wider">{bmiCategory(calcBMI(latestMeasurement.weight, latestMeasurement.height))}</div>
+                    </div>
+                  </div>
+                  {myMeasurements.length > 1 && (
+                    <div className="mt-4 pt-4 border-t border-neutral-800">
+                      <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold mb-2">Progress</div>
+                      <div className="space-y-1.5">
+                        {myMeasurements.slice(0, 4).map((m, i) => (
+                          <div key={m.id} className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-400">{new Date(m.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-white font-medium">{Number(m.weight).toFixed(1)} kg</span>
+                              <span className="text-amber-400 font-medium">BMI {calcBMI(m.weight, m.height)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="display-font text-xl font-semibold text-neutral-900">Upcoming sessions</h2>
+                <div className="text-xs text-stone-500">{upcomingSessions.length}</div>
+              </div>
+              {upcomingSessions.length === 0 ? (
+                <div className="bg-white rounded-2xl p-6 text-center border border-stone-200 border-dashed">
+                  <Icon name="Clock" size={24} className="text-stone-400 mb-2 mx-auto" />
+                  <div className="text-sm text-stone-500">No sessions scheduled</div>
+                  <div className="text-xs text-stone-400 mt-0.5">Check with your trainer</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {upcomingSessions.slice(0, 5).map((s) => (
+                    <div key={s.id} className="bg-white rounded-2xl p-4 border border-stone-200 flex items-center gap-3">
+                      <div className="text-center min-w-[48px]">
+                        <div className="text-[10px] uppercase tracking-wider text-amber-700 font-semibold">{new Date(s.date).toLocaleDateString('en-IN', { month: 'short' })}</div>
+                        <div className="display-font text-2xl font-semibold text-neutral-900 leading-tight">{new Date(s.date).getDate()}</div>
+                      </div>
+                      <div className="w-px h-10 bg-stone-200" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-neutral-900 text-sm">{s.time || 'Time TBD'}</div>
+                        {(s.location || member.location) && <div className="text-xs text-stone-500 flex items-center gap-1 mt-0.5"><Icon name="MapPin" size={11} /> {s.location || member.location}</div>}
+                        {s.notes && <div className="text-xs text-stone-600 italic mt-1 truncate">"{s.notes}"</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {completedSessions.length > 0 && (
+              <div>
+                <h2 className="display-font text-xl font-semibold text-neutral-900 mb-3">Recent activity</h2>
+                <div className="space-y-2">
+                  {[...completedSessions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map((s) => (
+                    <div key={s.id} className="bg-white rounded-xl p-3 border border-stone-200 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 flex-shrink-0">
+                        <Icon name="Check" size={16} strokeWidth={3} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-neutral-900">{new Date(s.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
+                        <div className="text-xs text-stone-500">{s.time} {s.location && `· ${s.location}`}</div>
+                      </div>
+                      <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">Done</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {myPayments.length > 0 && (
+              <div>
+                <h2 className="display-font text-xl font-semibold text-neutral-900 mb-3">Payment history</h2>
+                <div className="space-y-2">
+                  {[...myPayments].sort((a, b) => (b.date || '').localeCompare(a.date || '')).map((p) => (
+                    <div key={p.id} className="bg-white rounded-xl p-3 border border-stone-200 flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-neutral-900 text-sm">₹{Number(p.amount).toLocaleString('en-IN')}</div>
+                        <div className="text-xs text-stone-500">{p.method} · {p.date ? new Date(p.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</div>
+                      </div>
+                      <Icon name="Check" size={18} className="text-emerald-500" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+      );
+    }
+
+    function StatTile({ iconName, value, label, tone }) {
+      const tones = { emerald: 'bg-emerald-50 text-emerald-700', amber: 'bg-amber-50 text-amber-700', stone: 'bg-stone-100 text-stone-700' };
+      return (
+        <div className="bg-white rounded-2xl p-3 border border-stone-200">
+          <div className={`w-8 h-8 rounded-lg ${tones[tone]} flex items-center justify-center mb-2`}>
+            <Icon name={iconName} size={16} />
+          </div>
+          <div className="display-font text-xl font-semibold text-neutral-900">{value}</div>
+          <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">{label}</div>
+        </div>
+      );
+    }
+
+    // ===== Trainer App =====
+    function TrainerApp({ members, sessions, payments, measurements, onExit }) {
+      const [view, setView] = useState('dashboard');
+      const [showAddMember, setShowAddMember] = useState(false);
+      const [showAddSession, setShowAddSession] = useState(false);
+      const [showAddPayment, setShowAddPayment] = useState(false);
+      const [editingMember, setEditingMember] = useState(null);
+      const [selectedMember, setSelectedMember] = useState(null);
+
+      const saveMember = async (m) => { await Storage.save('members', m); };
+      const deleteMember = async (id) => {
+        if (!confirm('Delete this member and all their records?')) return;
+        await Storage.delete('members', id);
+        for (const s of sessions.filter((x) => x.memberId === id)) await Storage.delete('sessions', s.id);
+        for (const p of payments.filter((x) => x.memberId === id)) await Storage.delete('payments', p.id);
+        for (const m of measurements.filter((x) => x.memberId === id)) await Storage.delete('measurements', m.id);
+      };
+      const saveSession = async (s) => { await Storage.save('sessions', s); };
+      const deleteSession = async (id) => { await Storage.delete('sessions', id); };
+      const savePayment = async (p) => { await Storage.save('payments', p); };
+      const deletePayment = async (id) => {
+        if (!confirm('Delete this payment record?')) return;
+        await Storage.delete('payments', id);
+      };
+      const saveMeasurement = async (m) => { await Storage.save('measurements', m); };
+      const deleteMeasurement = async (id) => {
+        if (!confirm('Delete this measurement?')) return;
+        await Storage.delete('measurements', id);
+      };
+
+      const today = new Date().toISOString().split('T')[0];
+      const todaysSessions = sessions.filter((s) => s.date === today).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+      const memberStats = (memberId) => {
+        const member = members.find((m) => m.id === memberId);
+        if (!member) return { paid: 0, due: 0, sessionsCompleted: 0, totalCharged: 0, billingMode: 'package' };
+        const paid = payments.filter((p) => p.memberId === memberId).reduce((sum, p) => sum + Number(p.amount), 0);
+        const sessionsCompleted = sessions.filter((s) => s.memberId === memberId && s.status === 'completed').length;
+        const billingMode = member.billingMode || 'package'; // 'package' or 'per_session'
+        let totalCharged = 0;
+        if (billingMode === 'per_session') {
+          totalCharged = Number(member.sessionRate || 0) * sessionsCompleted;
+        } else {
+          totalCharged = Number(member.packageAmount || 0);
+        }
+        const due = totalCharged - paid;
+        return { paid, due, sessionsCompleted, totalCharged, billingMode };
+      };
+
+      const totalDue = members.reduce((sum, m) => sum + Math.max(0, memberStats(m.id).due), 0);
+      const totalCollected = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+      const titles = {
+        dashboard: { sub: 'Overview', main: 'Today' },
+        members: { sub: 'Members', main: 'Roster' },
+        sessions: { sub: 'Sessions', main: 'Schedule' },
+        payments: { sub: 'Payments', main: 'Ledger' },
+        reports: { sub: 'Reports', main: 'Insights' },
+      };
+
+      return (
+        <div className="min-h-screen bg-stone-50 pb-24">
+          <header className="px-5 pt-6 pb-5 bg-neutral-950 text-white rounded-b-3xl relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <button onClick={onExit} className="flex items-center gap-1 text-xs text-neutral-400 font-medium active:text-white">
+                  <Icon name="LogOut" size={14} /> Switch
+                </button>
+                <div className="flex items-center gap-2">
+                  <img src="logo-white.png" alt="Stay Fit" className="h-5 w-auto opacity-90" />
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-amber-400 font-bold">Trainer</div>
+                </div>
+              </div>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-amber-400 font-bold">{titles[view].sub}</div>
+                  <h1 className="display-font text-3xl font-semibold mt-1 text-white">{titles[view].main}</h1>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="px-5 pt-6">
+            {view === 'dashboard' && <Dashboard members={members} sessions={sessions} payments={payments} todaysSessions={todaysSessions} totalDue={totalDue} totalCollected={totalCollected} memberStats={memberStats} setView={setView} saveSession={saveSession} />}
+            {view === 'members' && <MembersView members={members} memberStats={memberStats} onAdd={() => { setEditingMember(null); setShowAddMember(true); }} onEdit={(m) => { setEditingMember(m); setShowAddMember(true); }} onDelete={deleteMember} onSelect={(m) => setSelectedMember(m)} />}
+            {view === 'sessions' && <SessionsView members={members} sessions={sessions} onAdd={() => setShowAddSession(true)} onComplete={(s) => saveSession({ ...s, status: 'completed' })} onCancel={(s) => saveSession({ ...s, status: 'cancelled' })} onDelete={deleteSession} />}
+            {view === 'payments' && <PaymentsView members={members} payments={payments} memberStats={memberStats} onAdd={() => setShowAddPayment(true)} onDelete={deletePayment} />}
+            {view === 'reports' && <ReportsView members={members} sessions={sessions} payments={payments} memberStats={memberStats} totalDue={totalDue} totalCollected={totalCollected} />}
+          </main>
+
+          <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-2 py-2 z-30" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
+            <div className="flex justify-around">
+              {[
+                { id: 'dashboard', icon: 'BarChart3', label: 'Home' },
+                { id: 'members', icon: 'Users', label: 'Members' },
+                { id: 'sessions', icon: 'Calendar', label: 'Sessions' },
+                { id: 'payments', icon: 'Wallet', label: 'Payments' },
+                { id: 'reports', icon: 'TrendingUp', label: 'Reports' },
+              ].map(({ id, icon, label }) => (
+                <button key={id} onClick={() => setView(id)} className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${view === id ? 'text-neutral-900' : 'text-stone-400'}`}>
+                  <Icon name={icon} size={20} strokeWidth={view === id ? 2.5 : 1.8} />
+                  <span className={`text-[10px] mt-1 ${view === id ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+                  {view === id && <div className="w-1 h-1 rounded-full bg-amber-500 mt-0.5" />}
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {showAddMember && <MemberForm member={editingMember} existingPhones={members.filter((x) => x.id !== editingMember?.id).map((x) => (x.phone || '').replace(/[^0-9]/g, '').slice(-10)).filter(Boolean)} onSave={async (m) => { await saveMember(m); setShowAddMember(false); setEditingMember(null); }} onClose={() => { setShowAddMember(false); setEditingMember(null); }} />}
+          {showAddSession && <SessionForm members={members} onSave={async (s) => { await saveSession(s); setShowAddSession(false); }} onClose={() => setShowAddSession(false)} />}
+          {showAddPayment && <PaymentForm members={members} memberStats={memberStats} onSave={async (p) => { await savePayment(p); setShowAddPayment(false); }} onClose={() => setShowAddPayment(false)} />}
+          {selectedMember && <MemberDetail
+            member={selectedMember}
+            stats={memberStats(selectedMember.id)}
+            sessions={sessions.filter((s) => s.memberId === selectedMember.id)}
+            payments={payments.filter((p) => p.memberId === selectedMember.id)}
+            measurements={measurements.filter((m) => m.memberId === selectedMember.id)}
+            onAddMeasurement={saveMeasurement}
+            onDeleteMeasurement={deleteMeasurement}
+            onClose={() => setSelectedMember(null)}
+          />}
+        </div>
+      );
+    }
+
+    function Dashboard({ members, sessions, payments, todaysSessions, totalDue, totalCollected, memberStats, setView, saveSession }) {
+      const activeMembers = members.filter((m) => memberStats(m.id).due >= 0).length;
+      return (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setView('members')} className="bg-white rounded-2xl p-4 text-left border border-stone-200 active:scale-95 transition">
+              <div className="text-xs uppercase tracking-wider text-stone-500 font-medium">Members</div>
+              <div className="display-font text-3xl font-semibold text-neutral-900 mt-1">{members.length}</div>
+              <div className="text-xs text-stone-500 mt-1">{activeMembers} active</div>
+            </button>
+            <button onClick={() => setView('sessions')} className="bg-white rounded-2xl p-4 text-left border border-stone-200 active:scale-95 transition">
+              <div className="text-xs uppercase tracking-wider text-stone-500 font-medium">Today</div>
+              <div className="display-font text-3xl font-semibold text-neutral-900 mt-1">{todaysSessions.length}</div>
+              <div className="text-xs text-stone-500 mt-1">sessions scheduled</div>
+            </button>
+            <button onClick={() => setView('payments')} className="bg-neutral-950 text-white rounded-2xl p-4 text-left active:scale-95 transition">
+              <div className="text-xs uppercase tracking-wider text-amber-400 font-medium">Collected</div>
+              <div className="display-font text-3xl font-semibold mt-1">₹{totalCollected.toLocaleString('en-IN')}</div>
+              <div className="text-xs text-stone-400 mt-1">all-time</div>
+            </button>
+            <button onClick={() => setView('payments')} className="bg-amber-400 rounded-2xl p-4 text-left active:scale-95 transition">
+              <div className="text-xs uppercase tracking-wider text-neutral-900 font-medium">Pending</div>
+              <div className="display-font text-3xl font-semibold text-neutral-900 mt-1">₹{totalDue.toLocaleString('en-IN')}</div>
+              <div className="text-xs text-stone-800 mt-1">to collect</div>
+            </button>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="display-font text-xl font-semibold text-neutral-900">Today's sessions</h2>
+              <button onClick={() => setView('sessions')} className="text-xs text-stone-500 font-medium flex items-center gap-1">View all <Icon name="ChevronRight" size={14} /></button>
+            </div>
+            {todaysSessions.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center border border-stone-200 border-dashed">
+                <Icon name="Clock" size={28} className="text-stone-400 mb-2 mx-auto" />
+                <div className="text-sm text-stone-500">No sessions today</div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {todaysSessions.map((s) => {
+                  const m = members.find((x) => x.id === s.memberId);
+                  return (
+                    <div key={s.id} className="bg-white rounded-2xl p-4 border border-stone-200 flex items-center gap-3">
+                      <div className="text-center min-w-[52px]">
+                        <div className="display-font text-lg font-semibold text-neutral-900 leading-tight">{s.time?.split(':')[0] || '—'}</div>
+                        <div className="text-[10px] uppercase tracking-wider text-stone-500">{s.time ? `:${s.time.split(':')[1]}` : ''}</div>
+                      </div>
+                      <div className="w-px h-10 bg-stone-200" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-neutral-900 truncate">{m?.name || 'Unknown'}</div>
+                        <div className="text-xs text-stone-500 flex items-center gap-1 mt-0.5"><Icon name="MapPin" size={11} /> {s.location || m?.location || 'No location'}</div>
+                      </div>
+                      {s.status === 'completed' ? <div className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-semibold uppercase tracking-wider">Done</div>
+                      : s.status === 'cancelled' ? <div className="px-2 py-1 bg-stone-100 text-stone-500 rounded-full text-[10px] font-semibold uppercase tracking-wider">Cancelled</div>
+                      : <button onClick={() => saveSession({ ...s, status: 'completed' })} className="w-9 h-9 rounded-full bg-neutral-950 text-white flex items-center justify-center active:scale-90 transition"><Icon name="Check" size={16} strokeWidth={3} /></button>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {totalDue > 0 && (
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <Icon name="AlertCircle" size={18} className="text-amber-700 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-semibold text-neutral-900 text-sm">Outstanding dues</div>
+                  <div className="text-xs text-stone-700 mt-1">{members.filter((m) => memberStats(m.id).due > 0).length} members owe ₹{totalDue.toLocaleString('en-IN')}</div>
+                  <button onClick={() => setView('payments')} className="text-xs font-semibold text-amber-900 mt-2 flex items-center gap-1">Review <Icon name="ChevronRight" size={12} /></button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {members.length === 0 && (
+            <div className="bg-white rounded-2xl p-8 text-center border border-stone-200 border-dashed">
+              <Icon name="Users" size={32} className="text-stone-400 mb-3 mx-auto" />
+              <div className="display-font text-lg font-semibold text-neutral-900">Start by adding members</div>
+              <div className="text-sm text-stone-500 mt-1">Tap the Members tab below</div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function MembersView({ members, memberStats, onAdd, onEdit, onDelete, onSelect }) {
+      return (
+        <div className="space-y-3">
+          <button onClick={onAdd} className="w-full bg-neutral-950 text-white rounded-2xl p-4 flex items-center justify-center gap-2 font-semibold active:scale-[0.98] transition">
+            <Icon name="Plus" size={18} /> Add new member
+          </button>
+          {members.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center border border-stone-200 border-dashed">
+              <Icon name="Users" size={28} className="text-stone-400 mb-2 mx-auto" />
+              <div className="text-sm text-stone-500">No members yet</div>
+            </div>
+          ) : members.map((m) => {
+            const stats = memberStats(m.id);
+            return (
+              <div key={m.id} className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+                <button onClick={() => onSelect(m)} className="w-full p-4 text-left active:bg-stone-50 transition">
+                  <div className="flex items-start gap-3">
+                    <div className="w-11 h-11 rounded-full bg-stone-100 flex items-center justify-center text-neutral-900 font-semibold display-font flex-shrink-0">{m.name?.[0]?.toUpperCase() || '?'}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold text-neutral-900 truncate">{m.name}</div>
+                        {stats.due > 0 && <div className="w-1.5 h-1.5 rounded-full bg-amber-500 pulse-dot flex-shrink-0" />}
+                      </div>
+                      <div className="text-xs text-stone-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span>{m.billingMode === 'per_session' ? `₹${Number(m.sessionRate || 0)}/session` : m.packageType}</span>
+                        {m.location && <><span>·</span><span className="flex items-center gap-0.5"><Icon name="MapPin" size={10} />{m.location}</span></>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-2 text-xs">
+                        <span className="text-stone-600">Paid <strong className="text-neutral-900">₹{stats.paid.toLocaleString('en-IN')}</strong></span>
+                        {stats.due > 0 ? <span className="text-amber-700">Due <strong>₹{stats.due.toLocaleString('en-IN')}</strong></span>
+                        : stats.due < 0 ? <span className="text-emerald-700">Advance <strong>₹{Math.abs(stats.due).toLocaleString('en-IN')}</strong></span>
+                        : <span className="text-emerald-700 font-semibold">Cleared</span>}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+                <div className="flex border-t border-stone-100">
+                  {m.phone && <a href={`tel:${m.phone}`} className="flex-1 py-2.5 text-xs text-stone-600 font-medium flex items-center justify-center gap-1 active:bg-stone-50"><Icon name="Phone" size={12} /> Call</a>}
+                  <button onClick={() => onEdit(m)} className="flex-1 py-2.5 text-xs text-stone-600 font-medium flex items-center justify-center gap-1 active:bg-stone-50 border-l border-stone-100"><Icon name="Edit2" size={12} /> Edit</button>
+                  <button onClick={() => onDelete(m.id)} className="flex-1 py-2.5 text-xs text-red-600 font-medium flex items-center justify-center gap-1 active:bg-red-50 border-l border-stone-100"><Icon name="Trash2" size={12} /> Delete</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function SessionsView({ members, sessions, onAdd, onComplete, onCancel, onDelete }) {
+      const [filter, setFilter] = useState('upcoming');
+      const today = new Date().toISOString().split('T')[0];
+      let filtered = sessions;
+      if (filter === 'upcoming') filtered = sessions.filter((s) => s.date >= today && s.status !== 'cancelled' && s.status !== 'completed');
+      else if (filter === 'completed') filtered = sessions.filter((s) => s.status === 'completed');
+      else if (filter === 'cancelled') filtered = sessions.filter((s) => s.status === 'cancelled');
+      filtered = [...filtered].sort((a, b) => {
+        const da = `${a.date} ${a.time || ''}`, db = `${b.date} ${b.time || ''}`;
+        return filter === 'completed' ? db.localeCompare(da) : da.localeCompare(db);
+      });
+
+      return (
+        <div className="space-y-3">
+          <button onClick={onAdd} className="w-full bg-neutral-950 text-white rounded-2xl p-4 flex items-center justify-center gap-2 font-semibold active:scale-[0.98] transition">
+            <Icon name="Plus" size={18} /> Schedule session
+          </button>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {['upcoming', 'completed', 'cancelled', 'all'].map((f) => (
+              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition ${filter === f ? 'bg-neutral-950 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>{f}</button>
+            ))}
+          </div>
+          {filtered.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center border border-stone-200 border-dashed">
+              <Icon name="Calendar" size={28} className="text-stone-400 mb-2 mx-auto" />
+              <div className="text-sm text-stone-500">No {filter} sessions</div>
+            </div>
+          ) : filtered.map((s) => {
+            const m = members.find((x) => x.id === s.memberId);
+            return (
+              <div key={s.id} className="bg-white rounded-2xl p-4 border border-stone-200">
+                <div className="flex items-start gap-3">
+                  <div className="text-center min-w-[48px]">
+                    <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">{new Date(s.date).toLocaleDateString('en-IN', { month: 'short' })}</div>
+                    <div className="display-font text-2xl font-semibold text-neutral-900 leading-tight">{new Date(s.date).getDate()}</div>
+                    <div className="text-[10px] text-stone-500">{s.time || '—'}</div>
+                  </div>
+                  <div className="w-px h-14 bg-stone-200" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-neutral-900 truncate">{m?.name || 'Unknown'}</div>
+                    {s.location && <div className="text-xs text-stone-500 flex items-center gap-1 mt-0.5"><Icon name="MapPin" size={11} /> {s.location}</div>}
+                    {s.notes && <div className="text-xs text-stone-600 mt-1 italic">"{s.notes}"</div>}
+                    <div className="flex items-center gap-2 mt-2">
+                      {s.status === 'completed' ? <div className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-semibold uppercase tracking-wider">Completed</div>
+                      : s.status === 'cancelled' ? <div className="px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full text-[10px] font-semibold uppercase tracking-wider">Cancelled</div>
+                      : <>
+                          <button onClick={() => onComplete(s)} className="px-3 py-1 bg-neutral-950 text-white rounded-full text-[11px] font-semibold active:scale-95 transition">Mark done</button>
+                          <button onClick={() => onCancel(s)} className="px-3 py-1 bg-stone-100 text-stone-600 rounded-full text-[11px] font-semibold active:scale-95 transition">Cancel</button>
+                        </>}
+                      <button onClick={() => onDelete(s.id)} className="ml-auto text-stone-400 active:text-red-500"><Icon name="Trash2" size={14} /></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function PaymentsView({ members, payments, memberStats, onAdd, onDelete }) {
+      const [tab, setTab] = useState('dues');
+      const sortedPayments = [...payments].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const membersWithDues = members.map((m) => ({ member: m, stats: memberStats(m.id) })).filter(({ stats }) => stats.due > 0).sort((a, b) => b.stats.due - a.stats.due);
+
+      return (
+        <div className="space-y-3">
+          <button onClick={onAdd} className="w-full bg-neutral-950 text-white rounded-2xl p-4 flex items-center justify-center gap-2 font-semibold active:scale-[0.98] transition">
+            <Icon name="Plus" size={18} /> Record payment
+          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setTab('dues')} className={`flex-1 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition ${tab === 'dues' ? 'bg-neutral-950 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>Pending Dues ({membersWithDues.length})</button>
+            <button onClick={() => setTab('history')} className={`flex-1 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition ${tab === 'history' ? 'bg-neutral-950 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>History</button>
+          </div>
+          {tab === 'dues' && (membersWithDues.length === 0 ? (
+            <div className="bg-emerald-50 rounded-2xl p-6 text-center border border-emerald-100">
+              <Icon name="Check" size={28} className="text-emerald-600 mb-2 mx-auto" />
+              <div className="font-semibold text-emerald-900">All cleared!</div>
+              <div className="text-xs text-emerald-700 mt-0.5">No pending dues</div>
+            </div>
+          ) : membersWithDues.map(({ member, stats }) => {
+            const isPerSession = member.billingMode === 'per_session';
+            const subline = isPerSession
+              ? `₹${Number(member.sessionRate || 0)}/session · ${stats.sessionsCompleted} done`
+              : `${member.packageType} · ₹${Number(member.packageAmount || 0).toLocaleString('en-IN')}`;
+            const whatsappMsg = isPerSession
+              ? `Hi ${member.name}, just a friendly reminder — ₹${stats.due} is pending for ${stats.sessionsCompleted} session${stats.sessionsCompleted === 1 ? '' : 's'} completed at ₹${Number(member.sessionRate || 0)} each. Thanks!`
+              : `Hi ${member.name}, just a friendly reminder that ₹${stats.due} is pending for your ${member.packageType} package. Thanks!`;
+            return (
+            <div key={member.id} className="bg-white rounded-2xl p-4 border border-stone-200">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-neutral-900 truncate">{member.name}</div>
+                  <div className="text-xs text-stone-500 mt-0.5">{subline}</div>
+                </div>
+                <div className="text-right ml-3">
+                  <div className="display-font text-xl font-semibold text-amber-700">₹{stats.due.toLocaleString('en-IN')}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-stone-500">due</div>
+                </div>
+              </div>
+              {member.phone && (
+                <a href={`https://wa.me/${member.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(whatsappMsg)}`} target="_blank" rel="noopener noreferrer" className="mt-3 w-full block text-center py-2 bg-emerald-500 text-white rounded-xl text-xs font-semibold active:scale-95 transition">
+                  Send WhatsApp reminder
+                </a>
+              )}
+            </div>
+            );
+          }))}
+          {tab === 'history' && (sortedPayments.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center border border-stone-200 border-dashed">
+              <Icon name="Wallet" size={28} className="text-stone-400 mb-2 mx-auto" />
+              <div className="text-sm text-stone-500">No payments yet</div>
+            </div>
+          ) : sortedPayments.map((p) => {
+            const m = members.find((x) => x.id === p.memberId);
+            return (
+              <div key={p.id} className="bg-white rounded-2xl p-4 border border-stone-200 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600"><Icon name="Check" size={18} strokeWidth={2.5} /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-neutral-900 truncate">{m?.name || 'Unknown'}</div>
+                  <div className="text-xs text-stone-500 mt-0.5">{p.date ? new Date(p.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}{p.method && ` · ${p.method}`}</div>
+                </div>
+                <div className="text-right"><div className="display-font text-lg font-semibold text-neutral-900">₹{Number(p.amount).toLocaleString('en-IN')}</div></div>
+                <button onClick={() => onDelete(p.id)} className="text-stone-400 active:text-red-500 ml-1"><Icon name="Trash2" size={14} /></button>
+              </div>
+            );
+          }))}
+        </div>
+      );
+    }
+
+    function ReportsView({ members, sessions, payments, memberStats, totalDue, totalCollected }) {
+      const now = new Date();
+      const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const thisMonthPayments = payments.filter((p) => p.date?.startsWith(thisMonth));
+      const thisMonthCollected = thisMonthPayments.reduce((s, p) => s + Number(p.amount), 0);
+      const thisMonthSessions = sessions.filter((s) => s.date?.startsWith(thisMonth));
+      const completedThisMonth = thisMonthSessions.filter((s) => s.status === 'completed').length;
+
+      const locationBreakdown = {};
+      members.forEach((m) => {
+        const loc = m.location || 'Unspecified';
+        if (!locationBreakdown[loc]) locationBreakdown[loc] = { count: 0, revenue: 0 };
+        locationBreakdown[loc].count += 1;
+        locationBreakdown[loc].revenue += memberStats(m.id).paid;
+      });
+
+      const packageBreakdown = {};
+      members.forEach((m) => {
+        const pkg = m.packageType || 'Other';
+        packageBreakdown[pkg] = (packageBreakdown[pkg] || 0) + 1;
+      });
+
+      return (
+        <div className="space-y-4">
+          <div className="bg-neutral-950 text-white rounded-2xl p-5">
+            <div className="text-xs uppercase tracking-[0.2em] text-amber-400 font-medium">This Month</div>
+            <div className="mt-2 display-font text-4xl font-semibold">₹{thisMonthCollected.toLocaleString('en-IN')}</div>
+            <div className="text-sm text-stone-400 mt-1">collected from {thisMonthPayments.length} payments</div>
+            <div className="mt-4 pt-4 border-t border-stone-700 grid grid-cols-2 gap-4">
+              <div><div className="text-xs text-stone-400">Sessions held</div><div className="display-font text-2xl font-semibold mt-1">{completedThisMonth}</div></div>
+              <div><div className="text-xs text-stone-400">Total scheduled</div><div className="display-font text-2xl font-semibold mt-1">{thisMonthSessions.length}</div></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 border border-stone-200">
+            <div className="text-xs uppercase tracking-wider text-stone-500 font-medium">All-time</div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div><div className="display-font text-2xl font-semibold text-neutral-900">₹{totalCollected.toLocaleString('en-IN')}</div><div className="text-xs text-stone-500 mt-0.5">Collected</div></div>
+              <div><div className="display-font text-2xl font-semibold text-amber-700">₹{totalDue.toLocaleString('en-IN')}</div><div className="text-xs text-stone-500 mt-0.5">Outstanding</div></div>
+            </div>
+          </div>
+
+          {Object.keys(locationBreakdown).length > 0 && (
+            <div className="bg-white rounded-2xl p-5 border border-stone-200">
+              <div className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-3">By Location</div>
+              <div className="space-y-3">
+                {Object.entries(locationBreakdown).sort((a, b) => b[1].revenue - a[1].revenue).map(([loc, data]) => (
+                  <div key={loc}>
+                    <div className="flex justify-between items-baseline mb-1">
+                      <div className="text-sm font-semibold text-neutral-900 flex items-center gap-1"><Icon name="MapPin" size={12} className="text-stone-500" /> {loc}</div>
+                      <div className="display-font text-sm font-semibold text-neutral-900">₹{data.revenue.toLocaleString('en-IN')}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-400" style={{ width: `${(data.revenue / Math.max(1, Math.max(...Object.values(locationBreakdown).map((d) => d.revenue)))) * 100}%` }} />
+                      </div>
+                      <div className="text-[10px] text-stone-500 w-12 text-right">{data.count} members</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {Object.keys(packageBreakdown).length > 0 && (
+            <div className="bg-white rounded-2xl p-5 border border-stone-200">
+              <div className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-3">Package Mix</div>
+              <div className="space-y-2">
+                {Object.entries(packageBreakdown).sort((a, b) => b[1] - a[1]).map(([pkg, count]) => (
+                  <div key={pkg} className="flex items-center justify-between">
+                    <div className="text-sm text-stone-700">{pkg}</div>
+                    <div className="flex items-center gap-2"><div className="display-font text-sm font-semibold text-neutral-900">{count}</div><div className="text-[10px] text-stone-500">members</div></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Field({ label, children }) {
+      return (<div><label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">{label}</label>{children}</div>);
+    }
+
+    function MemberForm({ member, existingPhones = [], onSave, onClose }) {
+      const [form, setForm] = useState(member || {
+        name: '', phone: '', location: '',
+        billingMode: 'package', // 'package' or 'per_session'
+        packageType: 'Monthly', packageAmount: '',
+        sessionRate: '', sessionsPerWeek: '',
+        packageStart: new Date().toISOString().split('T')[0], packageEnd: '',
+        sessionsTotal: '', notes: ''
+      });
+      const [phoneError, setPhoneError] = useState('');
+      const [saving, setSaving] = useState(false);
+      const isPerSession = form.billingMode === 'per_session';
+
+      const handleSubmit = async () => {
+        if (!form.name?.trim()) { alert('Name is required'); return; }
+        if (isPerSession) {
+          if (!form.sessionRate || Number(form.sessionRate) <= 0) { alert('Per-session rate is required'); return; }
+        } else {
+          if (!form.packageAmount) { alert('Package amount is required'); return; }
+        }
+        const cleanedPhone = (form.phone || '').replace(/[^0-9]/g, '').slice(-10);
+        if (cleanedPhone && existingPhones.includes(cleanedPhone)) { setPhoneError('Another member already uses this phone number'); return; }
+        setSaving(true);
+        try { await onSave(form); } catch (e) { alert('Save failed: ' + e.message); setSaving(false); }
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
+          <div className="bg-stone-50 rounded-t-3xl w-full max-h-[90vh] overflow-y-auto slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-stone-50 px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+              <h2 className="display-font text-xl font-semibold text-neutral-900">{member ? 'Edit Member' : 'New Member'}</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <Field label="Name *"><input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="form-input" placeholder="Member name" /></Field>
+              <Field label="Phone (used for member login)">
+                <input type="tel" value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setPhoneError(''); }} className="form-input" placeholder="+91 98765 43210" />
+                {phoneError && <div className="text-xs text-red-600 mt-1 flex items-center gap-1"><Icon name="AlertCircle" size={11} /> {phoneError}</div>}
+              </Field>
+              <Field label="Training location"><input type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="form-input" placeholder="e.g. Home, Park, Gym A" /></Field>
+
+              <Field label="Billing mode">
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setForm({ ...form, billingMode: 'package' })} className={`p-3 rounded-xl border text-left transition ${!isPerSession ? 'bg-neutral-950 text-white border-neutral-950' : 'bg-white text-neutral-700 border-stone-200'}`}>
+                    <div className="text-xs font-bold uppercase tracking-wider">Flat Package</div>
+                    <div className="text-[10px] mt-0.5 opacity-75">Fixed price for the period</div>
+                  </button>
+                  <button type="button" onClick={() => setForm({ ...form, billingMode: 'per_session' })} className={`p-3 rounded-xl border text-left transition ${isPerSession ? 'bg-neutral-950 text-white border-neutral-950' : 'bg-white text-neutral-700 border-stone-200'}`}>
+                    <div className="text-xs font-bold uppercase tracking-wider">Per Session</div>
+                    <div className="text-[10px] mt-0.5 opacity-75">Charge by sessions completed</div>
+                  </button>
+                </div>
+              </Field>
+
+              {isPerSession ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Rate per session (₹) *"><input type="number" inputMode="numeric" value={form.sessionRate} onChange={(e) => setForm({ ...form, sessionRate: e.target.value })} className="form-input" placeholder="500" /></Field>
+                  <Field label="Sessions / week"><input type="number" inputMode="numeric" value={form.sessionsPerWeek} onChange={(e) => setForm({ ...form, sessionsPerWeek: e.target.value })} className="form-input" placeholder="3" /></Field>
+                </div>
+              ) : (
+                <>
+                  <Field label="Package type">
+                    <select value={form.packageType} onChange={(e) => setForm({ ...form, packageType: e.target.value })} className="form-input">
+                      <option>Monthly</option><option>3 Months</option><option>6 Months</option><option>Yearly</option><option>Session-wise</option><option>Custom</option>
+                    </select>
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Package amount (₹) *"><input type="number" inputMode="numeric" value={form.packageAmount} onChange={(e) => setForm({ ...form, packageAmount: e.target.value })} className="form-input" placeholder="5000" /></Field>
+                    <Field label="Total sessions"><input type="number" inputMode="numeric" value={form.sessionsTotal} onChange={(e) => setForm({ ...form, sessionsTotal: e.target.value })} className="form-input" placeholder="12" /></Field>
+                  </div>
+                </>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={isPerSession ? "Started on" : "Package start"}><input type="date" value={form.packageStart} onChange={(e) => setForm({ ...form, packageStart: e.target.value })} className="form-input" /></Field>
+                <Field label={isPerSession ? "Until (optional)" : "Package end"}><input type="date" value={form.packageEnd} onChange={(e) => setForm({ ...form, packageEnd: e.target.value })} className="form-input" /></Field>
+              </div>
+              <Field label="Notes"><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="form-input" rows={2} placeholder="Anything to remember..." /></Field>
+              <button onClick={handleSubmit} disabled={saving} className="w-full bg-neutral-950 text-white rounded-2xl py-4 font-semibold active:scale-[0.98] transition disabled:opacity-60">
+                {saving ? 'Saving…' : (member ? 'Save changes' : 'Add member')}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function SessionForm({ members, onSave, onClose }) {
+      const [form, setForm] = useState({ memberId: members[0]?.id || '', date: new Date().toISOString().split('T')[0], time: '07:00', location: '', notes: '', status: 'scheduled' });
+      const [saving, setSaving] = useState(false);
+
+      const handleSubmit = async () => {
+        if (!form.memberId) { alert('Please select a member'); return; }
+        const member = members.find((m) => m.id === form.memberId);
+        setSaving(true);
+        try { await onSave({ ...form, location: form.location || member?.location || '' }); } catch (e) { alert('Save failed: ' + e.message); setSaving(false); }
+      };
+
+      if (members.length === 0) {
+        return (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
+            <div className="bg-stone-50 rounded-t-3xl w-full p-8 slide-up text-center" onClick={(e) => e.stopPropagation()}>
+              <Icon name="Users" size={32} className="text-stone-400 mb-3 mx-auto" />
+              <div className="display-font text-lg font-semibold">Add a member first</div>
+              <button onClick={onClose} className="mt-4 px-6 py-2 bg-neutral-950 text-white rounded-full text-sm font-semibold">Got it</button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
+          <div className="bg-stone-50 rounded-t-3xl w-full max-h-[90vh] overflow-y-auto slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-stone-50 px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+              <h2 className="display-font text-xl font-semibold text-neutral-900">Schedule Session</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <Field label="Member">
+                <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} className="form-input">
+                  {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Date"><input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="form-input" /></Field>
+                <Field label="Time"><input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="form-input" /></Field>
+              </div>
+              <Field label="Location"><input type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="form-input" placeholder="Leave blank to use default" /></Field>
+              <Field label="Notes"><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="form-input" rows={2} placeholder="Focus areas, equipment..." /></Field>
+              <button onClick={handleSubmit} disabled={saving} className="w-full bg-neutral-950 text-white rounded-2xl py-4 font-semibold active:scale-[0.98] transition disabled:opacity-60">{saving ? 'Saving…' : 'Schedule'}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function PaymentForm({ members, memberStats, onSave, onClose }) {
+      const [form, setForm] = useState({ memberId: members[0]?.id || '', amount: '', date: new Date().toISOString().split('T')[0], method: 'UPI', notes: '' });
+      const selected = members.find((m) => m.id === form.memberId);
+      const stats = selected ? memberStats(selected.id) : null;
+      const [saving, setSaving] = useState(false);
+
+      const handleSubmit = async () => {
+        if (!form.memberId) { alert('Select a member'); return; }
+        if (!form.amount || Number(form.amount) <= 0) { alert('Enter a valid amount'); return; }
+        setSaving(true);
+        try { await onSave(form); } catch (e) { alert('Save failed: ' + e.message); setSaving(false); }
+      };
+
+      if (members.length === 0) {
+        return (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
+            <div className="bg-stone-50 rounded-t-3xl w-full p-8 slide-up text-center" onClick={(e) => e.stopPropagation()}>
+              <Icon name="Users" size={32} className="text-stone-400 mb-3 mx-auto" />
+              <div className="display-font text-lg font-semibold">Add a member first</div>
+              <button onClick={onClose} className="mt-4 px-6 py-2 bg-neutral-950 text-white rounded-full text-sm font-semibold">Got it</button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
+          <div className="bg-stone-50 rounded-t-3xl w-full max-h-[90vh] overflow-y-auto slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-stone-50 px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+              <h2 className="display-font text-xl font-semibold text-neutral-900">Record Payment</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <Field label="Member">
+                <select value={form.memberId} onChange={(e) => setForm({ ...form, memberId: e.target.value })} className="form-input">
+                  {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </Field>
+              {stats && <div className="bg-white rounded-xl p-3 border border-stone-200 flex justify-between text-sm">
+                <span className="text-stone-500">Currently due:</span>
+                <span className={`display-font font-semibold ${stats.due > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>₹{stats.due.toLocaleString('en-IN')}</span>
+              </div>}
+              <Field label="Amount (₹)"><input type="number" inputMode="numeric" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="form-input" placeholder="0" autoFocus /></Field>
+              {stats && stats.due > 0 && <button onClick={() => setForm({ ...form, amount: String(stats.due) })} className="text-xs text-stone-600 font-semibold underline">Set to full due (₹{stats.due.toLocaleString('en-IN')})</button>}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Date"><input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="form-input" /></Field>
+                <Field label="Method">
+                  <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} className="form-input">
+                    <option>UPI</option><option>Cash</option><option>Bank transfer</option><option>Card</option><option>Other</option>
+                  </select>
+                </Field>
+              </div>
+              <Field label="Notes"><input type="text" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="form-input" placeholder="Optional" /></Field>
+              <button onClick={handleSubmit} disabled={saving} className="w-full bg-neutral-950 text-white rounded-2xl py-4 font-semibold active:scale-[0.98] transition disabled:opacity-60">{saving ? 'Saving…' : 'Record payment'}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function MemberDetail({ member, stats, sessions, payments, measurements, onAddMeasurement, onDeleteMeasurement, onClose }) {
+      const [showAddMeasurement, setShowAddMeasurement] = useState(false);
+      const sortedSessions = [...sessions].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 10);
+      const sortedPayments = [...payments].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const sortedMeasurements = [...(measurements || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const latest = sortedMeasurements[0];
+      const previous = sortedMeasurements[1];
+      const isPerSession = member.billingMode === 'per_session';
+
+      const Row = ({ label, value }) => (<div className="flex justify-between gap-3"><span className="text-stone-500">{label}</span><span className="text-neutral-900 font-medium text-right">{value}</span></div>);
+
+      const weightDelta = latest && previous ? Number(latest.weight) - Number(previous.weight) : null;
+
+      return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
+          <div className="bg-stone-50 rounded-t-3xl w-full max-h-[90vh] overflow-y-auto slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-stone-50 px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200 z-10">
+              <h2 className="display-font text-xl font-semibold text-neutral-900 truncate">{member.name}</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center flex-shrink-0"><Icon name="X" size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-white rounded-2xl p-4 border border-stone-200 space-y-2 text-sm">
+                {isPerSession ? (
+                  <>
+                    <Row label="Billing" value="Per session" />
+                    <Row label="Rate" value={`₹${Number(member.sessionRate || 0).toLocaleString('en-IN')} / session`} />
+                    {member.sessionsPerWeek && <Row label="Frequency" value={`${member.sessionsPerWeek} / week`} />}
+                  </>
+                ) : (
+                  <>
+                    <Row label="Package" value={member.packageType} />
+                    <Row label="Amount" value={`₹${Number(member.packageAmount || 0).toLocaleString('en-IN')}`} />
+                  </>
+                )}
+                <Row label="Phone" value={member.phone || '—'} />
+                <Row label="Location" value={member.location || '—'} />
+                {member.packageStart && <Row label="Start" value={new Date(member.packageStart).toLocaleDateString('en-IN')} />}
+                {member.packageEnd && <Row label="End" value={new Date(member.packageEnd).toLocaleDateString('en-IN')} />}
+                {!isPerSession && member.sessionsTotal && <Row label="Sessions" value={`${stats.sessionsCompleted} / ${member.sessionsTotal}`} />}
+                {member.notes && <Row label="Notes" value={member.notes} />}
+              </div>
+
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-white rounded-xl p-3 border border-stone-200">
+                  <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Charged</div>
+                  <div className="display-font text-lg font-semibold text-neutral-900 mt-0.5">₹{stats.totalCharged.toLocaleString('en-IN')}</div>
+                  {isPerSession && <div className="text-[10px] text-stone-500">{stats.sessionsCompleted} × ₹{Number(member.sessionRate || 0)}</div>}
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-stone-200">
+                  <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Paid</div>
+                  <div className="display-font text-lg font-semibold text-emerald-700 mt-0.5">₹{stats.paid.toLocaleString('en-IN')}</div>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-stone-200">
+                  <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">{stats.due > 0 ? 'Due' : stats.due < 0 ? 'Advance' : 'Status'}</div>
+                  <div className={`display-font text-lg font-semibold mt-0.5 ${stats.due > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {stats.due === 0 ? 'Cleared' : `₹${Math.abs(stats.due).toLocaleString('en-IN')}`}
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-stone-200">
+                  <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Sessions done</div>
+                  <div className="display-font text-lg font-semibold text-neutral-900 mt-0.5">{stats.sessionsCompleted}</div>
+                </div>
+              </div>
+
+              {/* Measurements section */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs uppercase tracking-wider text-stone-500 font-semibold">Body Measurements</div>
+                  <button onClick={() => setShowAddMeasurement(true)} className="text-xs text-amber-700 font-bold flex items-center gap-1 active:scale-95">
+                    <Icon name="Plus" size={12} /> Log entry
+                  </button>
+                </div>
+                {latest ? (
+                  <>
+                    <div className="bg-gradient-to-br from-neutral-950 to-neutral-900 text-white rounded-2xl p-4 mb-2">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">Latest · {new Date(latest.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                        {weightDelta !== null && Math.abs(weightDelta) > 0.05 && (
+                          <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${weightDelta < 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                            {weightDelta > 0 ? '+' : ''}{weightDelta.toFixed(1)} kg
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">Weight</div>
+                          <div className="display-font text-2xl font-semibold mt-0.5">{Number(latest.weight).toFixed(1)}<span className="text-sm text-neutral-400 ml-1">kg</span></div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">Height</div>
+                          <div className="display-font text-2xl font-semibold mt-0.5">{Number(latest.height).toFixed(0)}<span className="text-sm text-neutral-400 ml-1">cm</span></div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">BMI</div>
+                          <div className="display-font text-2xl font-semibold mt-0.5 text-amber-400">{calcBMI(latest.weight, latest.height)}</div>
+                          <div className="text-[9px] text-neutral-400 uppercase tracking-wider">{bmiCategory(calcBMI(latest.weight, latest.height))}</div>
+                        </div>
+                      </div>
+                      {latest.notes && <div className="mt-3 pt-3 border-t border-neutral-700 text-xs text-neutral-300 italic">"{latest.notes}"</div>}
+                    </div>
+                    {sortedMeasurements.length > 1 && (
+                      <details className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+                        <summary className="px-4 py-3 text-xs font-semibold text-stone-600 cursor-pointer flex items-center justify-between active:bg-stone-50">
+                          History ({sortedMeasurements.length - 1} earlier)
+                          <Icon name="ChevronDown" size={14} />
+                        </summary>
+                        <div className="divide-y divide-stone-100">
+                          {sortedMeasurements.slice(1).map((m) => (
+                            <div key={m.id} className="px-4 py-3 flex items-center justify-between text-sm">
+                              <div>
+                                <div className="font-medium text-neutral-900">{Number(m.weight).toFixed(1)} kg</div>
+                                <div className="text-[10px] text-stone-500">{new Date(m.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="text-right">
+                                  <div className="text-xs font-semibold text-amber-700">BMI {calcBMI(m.weight, m.height)}</div>
+                                  <div className="text-[10px] text-stone-500">{Number(m.height).toFixed(0)} cm</div>
+                                </div>
+                                <button onClick={() => onDeleteMeasurement(m.id)} className="text-stone-400 active:text-red-500"><Icon name="Trash2" size={12} /></button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-white rounded-2xl p-6 text-center border border-stone-200 border-dashed">
+                    <Icon name="Activity" size={24} className="text-stone-400 mb-2 mx-auto" />
+                    <div className="text-sm text-stone-500">No measurements logged yet</div>
+                    <button onClick={() => setShowAddMeasurement(true)} className="mt-3 px-4 py-1.5 bg-neutral-950 text-white rounded-full text-xs font-semibold">Add first entry</button>
+                  </div>
+                )}
+              </div>
+
+              {sortedPayments.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-stone-500 font-semibold mb-2">Payment history</div>
+                  <div className="space-y-2">
+                    {sortedPayments.map((p) => (
+                      <div key={p.id} className="bg-white rounded-xl p-3 border border-stone-200 flex justify-between text-sm">
+                        <div><div className="font-semibold text-neutral-900">₹{Number(p.amount).toLocaleString('en-IN')}</div><div className="text-xs text-stone-500">{p.method}</div></div>
+                        <div className="text-xs text-stone-500">{p.date ? new Date(p.date).toLocaleDateString('en-IN') : '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {sortedSessions.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-stone-500 font-semibold mb-2">Recent sessions</div>
+                  <div className="space-y-2">
+                    {sortedSessions.map((s) => (
+                      <div key={s.id} className="bg-white rounded-xl p-3 border border-stone-200 flex justify-between items-center text-sm">
+                        <div><div className="font-semibold text-neutral-900">{new Date(s.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {s.time}</div>{s.location && <div className="text-xs text-stone-500">{s.location}</div>}</div>
+                        <div className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full ${s.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : s.status === 'cancelled' ? 'bg-stone-100 text-stone-500' : 'bg-amber-50 text-amber-700'}`}>{s.status || 'scheduled'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {showAddMeasurement && (
+            <MeasurementForm
+              previous={latest}
+              onSave={async (data) => { await onAddMeasurement({ ...data, memberId: member.id }); setShowAddMeasurement(false); }}
+              onClose={() => setShowAddMeasurement(false)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // ===== BMI helpers =====
+    function calcBMI(weightKg, heightCm) {
+      const w = Number(weightKg), h = Number(heightCm);
+      if (!w || !h) return '—';
+      const m = h / 100;
+      const bmi = w / (m * m);
+      return bmi.toFixed(1);
+    }
+    function bmiCategory(bmi) {
+      const v = Number(bmi);
+      if (isNaN(v)) return '';
+      if (v < 18.5) return 'Underweight';
+      if (v < 25) return 'Healthy';
+      if (v < 30) return 'Overweight';
+      return 'Obese';
+    }
+
+    // ===== Measurement Form =====
+    function MeasurementForm({ previous, onSave, onClose }) {
+      const [form, setForm] = useState({
+        date: new Date().toISOString().split('T')[0],
+        weight: '',
+        height: previous?.height || '',
+        notes: '',
+      });
+      const [saving, setSaving] = useState(false);
+
+      const handleSubmit = async () => {
+        if (!form.weight || Number(form.weight) <= 0) { alert('Weight is required'); return; }
+        if (!form.height || Number(form.height) <= 0) { alert('Height is required'); return; }
+        setSaving(true);
+        try { await onSave(form); } catch (e) { alert('Save failed: ' + e.message); setSaving(false); }
+      };
+
+      const bmi = form.weight && form.height ? calcBMI(form.weight, form.height) : null;
+
+      return (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end" onClick={onClose}>
+          <div className="bg-stone-50 rounded-t-3xl w-full max-h-[90vh] overflow-y-auto slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-stone-50 px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+              <h2 className="display-font text-xl font-semibold text-neutral-900">Log Measurement</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <Field label="Date"><input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="form-input" /></Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Weight (kg) *"><input type="number" step="0.1" inputMode="decimal" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} className="form-input" placeholder="68.5" autoFocus /></Field>
+                <Field label="Height (cm) *"><input type="number" step="0.1" inputMode="decimal" value={form.height} onChange={(e) => setForm({ ...form, height: e.target.value })} className="form-input" placeholder="170" /></Field>
+              </div>
+              {bmi && (
+                <div className="bg-gradient-to-br from-neutral-950 to-neutral-900 text-white rounded-2xl p-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">Calculated BMI</div>
+                    <div className="display-font text-3xl font-semibold mt-0.5">{bmi}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-neutral-300">{bmiCategory(bmi)}</div>
+                  </div>
+                </div>
+              )}
+              <Field label="Notes"><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="form-input" rows={2} placeholder="Optional notes about this entry..." /></Field>
+              <button onClick={handleSubmit} disabled={saving} className="w-full bg-neutral-950 text-white rounded-2xl py-4 font-semibold active:scale-[0.98] transition disabled:opacity-60">
+                {saving ? 'Saving…' : 'Save measurement'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ===== Boot =====
+    waitForFirebase().then(() => {
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    });
+  </script>
+</body>
+</html>
