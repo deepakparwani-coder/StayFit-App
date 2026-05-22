@@ -228,6 +228,11 @@ A trainer with 50 members generates roughly 1,000 reads/day. Effectively free fo
 - ✅ Members can't access trainer view — PIN gate blocks them
 - ✅ Two billing modes per member: Flat Package or Per Session
 - ✅ Session-based dues auto-calculate as sessions are completed
+- ✅ **Backfill past sessions** — when adding a member who already trained before, enter their prior session count so dues calculate from day one
+- ✅ **Weekly recurring schedule** — pick training days (Mon–Sat, Sunday closed by default) + session time when adding a member, and the app auto-generates all upcoming sessions until the package end date
+- ✅ **No-show handling** — when a member misses without informing, tap "No-show" and choose: bill it (counts toward dues) or free pass (skip). Reschedule available too.
+- ✅ **Overdue alert** — sessions that have passed without being marked surface in their own filter with a yellow highlight
+- ✅ **Reschedule** — move any session (scheduled / no-show / cancelled) to a new date/time
 - ✅ Body measurements log: weight, height, auto-calculated BMI
 - ✅ Members see their progress (read-only); trainer enters measurements
 - ✅ Real-time sync across all devices via Firebase

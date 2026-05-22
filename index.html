@@ -67,12 +67,12 @@
 
     // ⚠️ REPLACE THESE WITH YOUR OWN FIREBASE PROJECT CONFIG
     const firebaseConfig = {
-      apiKey: "AIzaSyDWSjn_sKN7sRiMUb5gc7g1hfi8qksk5xw",
-      authDomain: "stayfit-app-95f0c.firebaseapp.com",
-      projectId: "stayfit-app-95f0c",
-      storageBucket: "stayfit-app-95f0c.firebasestorage.app",
-      messagingSenderId: "503264118557",
-      appId: "1:503264118557:web:94ed475ac770fc1aef03f4"
+      apiKey: "REPLACE_WITH_YOUR_API_KEY",
+      authDomain: "REPLACE.firebaseapp.com",
+      projectId: "REPLACE_PROJECT_ID",
+      storageBucket: "REPLACE.appspot.com",
+      messagingSenderId: "REPLACE",
+      appId: "REPLACE"
     };
 
     // ⚠️ TRAINER PIN — change this to whatever you want before deploying.
@@ -148,6 +148,63 @@
         await deleteDoc(doc(db(), name, id));
       },
     };
+
+    // ===== Date / Schedule helpers =====
+    // Day of week: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+    const DAYS = [
+      { v: 1, label: 'Mon' },
+      { v: 2, label: 'Tue' },
+      { v: 3, label: 'Wed' },
+      { v: 4, label: 'Thu' },
+      { v: 5, label: 'Fri' },
+      { v: 6, label: 'Sat' },
+    ]; // Sunday excluded (gym closed)
+
+    function toISO(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    // Generate scheduled session dates from startDate to endDate (inclusive),
+    // for the given days-of-week array. Skips Sundays automatically.
+    // If endDate is empty, generates 8 weeks ahead as fallback.
+    function generateRecurringSessions({ memberId, scheduleDays, scheduleTime, location, startDate, endDate }) {
+      if (!scheduleDays || scheduleDays.length === 0) return [];
+      const start = new Date(startDate || new Date().toISOString().split('T')[0]);
+      let end;
+      if (endDate) {
+        end = new Date(endDate);
+      } else {
+        end = new Date(start);
+        end.setDate(end.getDate() + 56); // 8 weeks fallback
+      }
+      if (end < start) return [];
+      const today = new Date(); today.setHours(0,0,0,0);
+      const sessions = [];
+      const cur = new Date(start);
+      cur.setHours(0,0,0,0);
+      while (cur <= end) {
+        const dow = cur.getDay();
+        if (dow !== 0 && scheduleDays.includes(dow)) {
+          // Only auto-create future or today; skip historical
+          if (cur >= today) {
+            sessions.push({
+              memberId,
+              date: toISO(cur),
+              time: scheduleTime || '07:00',
+              location: location || '',
+              notes: '',
+              status: 'scheduled',
+              recurring: true,
+            });
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      return sessions;
+    }
 
     // ===== Icons =====
     const Icon = ({ name, size = 20, className = '', strokeWidth = 2 }) => {
@@ -379,18 +436,22 @@
       const myMeasurements = [...(measurements || []).filter((m) => m.memberId === member.id)]
         .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       const completedSessions = mySessions.filter((s) => s.status === 'completed');
+      const billableNoShows = mySessions.filter((s) => s.status === 'no_show' && s.billable).length;
+      const pastSessions = Number(member.pastSessions || 0);
+      const billableSessions = pastSessions + completedSessions.length + billableNoShows;
       const upcomingSessions = mySessions
-        .filter((s) => s.date >= today && s.status !== 'cancelled' && s.status !== 'completed')
+        .filter((s) => s.date >= today && s.status !== 'cancelled' && s.status !== 'completed' && s.status !== 'no_show')
         .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
       const totalPaid = myPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
       const isPerSession = member.billingMode === 'per_session';
       const sessionRate = Number(member.sessionRate || 0);
       const packageAmount = Number(member.packageAmount || 0);
-      const totalCharged = isPerSession ? sessionRate * completedSessions.length : packageAmount;
+      const totalCharged = isPerSession ? sessionRate * billableSessions : packageAmount;
       const due = totalCharged - totalPaid;
       const sessionsTotal = Number(member.sessionsTotal || 0);
-      const progress = sessionsTotal > 0 ? Math.min(100, (completedSessions.length / sessionsTotal) * 100) : 0;
+      const totalForProgress = billableSessions; // count past + current
+      const progress = sessionsTotal > 0 ? Math.min(100, (totalForProgress / sessionsTotal) * 100) : 0;
 
       const latestMeasurement = myMeasurements[0];
       const previousMeasurement = myMeasurements[1];
@@ -443,10 +504,13 @@
                 </div>
               </div>
               <div className="flex items-baseline gap-2">
-                <div className="display-font text-6xl font-semibold text-neutral-900 leading-none">{completedSessions.length}</div>
+                <div className="display-font text-6xl font-semibold text-neutral-900 leading-none">{billableSessions}</div>
                 {sessionsTotal > 0 && <div className="text-stone-500 text-lg">/ {sessionsTotal}</div>}
               </div>
-              <div className="text-xs text-stone-500 mt-1">sessions completed</div>
+              <div className="text-xs text-stone-500 mt-1">
+                sessions completed
+                {pastSessions > 0 && <span className="text-amber-700"> · includes {pastSessions} prior</span>}
+              </div>
               {sessionsTotal > 0 && (
                 <>
                   <div className="mt-4 h-2 bg-stone-100 rounded-full overflow-hidden">
@@ -454,16 +518,16 @@
                   </div>
                   <div className="flex justify-between mt-1.5 text-[10px] text-stone-500">
                     <span>{Math.round(progress)}% done</span>
-                    <span>{sessionsTotal - completedSessions.length} remaining</span>
+                    <span>{Math.max(0, sessionsTotal - billableSessions)} remaining</span>
                   </div>
                 </>
               )}
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-              <StatTile iconName="Check" value={completedSessions.length} label="Completed" tone="emerald" />
+              <StatTile iconName="Check" value={billableSessions} label="Completed" tone="emerald" />
               <StatTile iconName="Calendar" value={upcomingSessions.length} label="Upcoming" tone="stone" />
-              <StatTile iconName="Award" value={mySessions.length} label="Total" tone="amber" />
+              <StatTile iconName="Award" value={mySessions.length} label="Scheduled" tone="amber" />
             </div>
 
             <div className="bg-white rounded-2xl p-5 border border-stone-200">
@@ -504,7 +568,7 @@
                   </div>
                   <div className="text-xs text-stone-600 mt-0.5">
                     {isPerSession
-                      ? `Paid ₹${totalPaid.toLocaleString('en-IN')} of ₹${totalCharged.toLocaleString('en-IN')} (${completedSessions.length} × ₹${sessionRate})`
+                      ? `Paid ₹${totalPaid.toLocaleString('en-IN')} of ₹${totalCharged.toLocaleString('en-IN')} (${billableSessions} × ₹${sessionRate})`
                       : `Paid ₹${totalPaid.toLocaleString('en-IN')} of ₹${packageAmount.toLocaleString('en-IN')}`}
                   </div>
                 </div>
@@ -657,7 +721,26 @@
       const [editingMember, setEditingMember] = useState(null);
       const [selectedMember, setSelectedMember] = useState(null);
 
-      const saveMember = async (m) => { await Storage.save('members', m); };
+      const saveMember = async (m) => {
+        const wasNew = !m.id;
+        // Strip autoGenerate flag before saving (not a persisted field)
+        const { autoGenerate, ...memberData } = m;
+        const saved = await Storage.save('members', memberData);
+        // Auto-generate recurring sessions for new members
+        if (wasNew && autoGenerate && saved && saved.scheduleDays && saved.scheduleDays.length > 0) {
+          const generated = generateRecurringSessions({
+            memberId: saved.id,
+            scheduleDays: saved.scheduleDays,
+            scheduleTime: saved.scheduleTime,
+            location: saved.location,
+            startDate: saved.packageStart,
+            endDate: saved.packageEnd,
+          });
+          for (const s of generated) {
+            try { await Storage.save('sessions', s); } catch (e) { console.error('Session create failed:', e); }
+          }
+        }
+      };
       const deleteMember = async (id) => {
         if (!confirm('Delete this member and all their records?')) return;
         await Storage.delete('members', id);
@@ -683,18 +766,24 @@
 
       const memberStats = (memberId) => {
         const member = members.find((m) => m.id === memberId);
-        if (!member) return { paid: 0, due: 0, sessionsCompleted: 0, totalCharged: 0, billingMode: 'package' };
+        if (!member) return { paid: 0, due: 0, sessionsCompleted: 0, totalCharged: 0, billingMode: 'package', billableSessions: 0, pastSessions: 0, noShowBillable: 0 };
         const paid = payments.filter((p) => p.memberId === memberId).reduce((sum, p) => sum + Number(p.amount), 0);
-        const sessionsCompleted = sessions.filter((s) => s.memberId === memberId && s.status === 'completed').length;
-        const billingMode = member.billingMode || 'package'; // 'package' or 'per_session'
+        const memberSessions = sessions.filter((s) => s.memberId === memberId);
+        const sessionsCompleted = memberSessions.filter((s) => s.status === 'completed').length;
+        // No-shows that the trainer decided to bill
+        const noShowBillable = memberSessions.filter((s) => s.status === 'no_show' && s.billable).length;
+        const pastSessions = Number(member.pastSessions || 0);
+        // Total billable sessions = backfilled past + completed + billable no-shows
+        const billableSessions = pastSessions + sessionsCompleted + noShowBillable;
+        const billingMode = member.billingMode || 'package';
         let totalCharged = 0;
         if (billingMode === 'per_session') {
-          totalCharged = Number(member.sessionRate || 0) * sessionsCompleted;
+          totalCharged = Number(member.sessionRate || 0) * billableSessions;
         } else {
           totalCharged = Number(member.packageAmount || 0);
         }
         const due = totalCharged - paid;
-        return { paid, due, sessionsCompleted, totalCharged, billingMode };
+        return { paid, due, sessionsCompleted, totalCharged, billingMode, billableSessions, pastSessions, noShowBillable };
       };
 
       const totalDue = members.reduce((sum, m) => sum + Math.max(0, memberStats(m.id).due), 0);
@@ -734,7 +823,16 @@
           <main className="px-5 pt-6">
             {view === 'dashboard' && <Dashboard members={members} sessions={sessions} payments={payments} todaysSessions={todaysSessions} totalDue={totalDue} totalCollected={totalCollected} memberStats={memberStats} setView={setView} saveSession={saveSession} />}
             {view === 'members' && <MembersView members={members} memberStats={memberStats} onAdd={() => { setEditingMember(null); setShowAddMember(true); }} onEdit={(m) => { setEditingMember(m); setShowAddMember(true); }} onDelete={deleteMember} onSelect={(m) => setSelectedMember(m)} />}
-            {view === 'sessions' && <SessionsView members={members} sessions={sessions} onAdd={() => setShowAddSession(true)} onComplete={(s) => saveSession({ ...s, status: 'completed' })} onCancel={(s) => saveSession({ ...s, status: 'cancelled' })} onDelete={deleteSession} />}
+            {view === 'sessions' && <SessionsView
+              members={members}
+              sessions={sessions}
+              onAdd={() => setShowAddSession(true)}
+              onComplete={(s) => saveSession({ ...s, status: 'completed' })}
+              onCancel={(s) => saveSession({ ...s, status: 'cancelled' })}
+              onNoShow={(s, billable) => saveSession({ ...s, status: 'no_show', billable })}
+              onReschedule={(s, date, time) => saveSession({ ...s, date, time, status: 'scheduled' })}
+              onDelete={deleteSession}
+            />}
             {view === 'payments' && <PaymentsView members={members} payments={payments} memberStats={memberStats} onAdd={() => setShowAddPayment(true)} onDelete={deletePayment} />}
             {view === 'reports' && <ReportsView members={members} sessions={sessions} payments={payments} memberStats={memberStats} totalDue={totalDue} totalCollected={totalCollected} />}
           </main>
@@ -908,28 +1006,55 @@
       );
     }
 
-    function SessionsView({ members, sessions, onAdd, onComplete, onCancel, onDelete }) {
+    function SessionsView({ members, sessions, onAdd, onComplete, onCancel, onNoShow, onReschedule, onDelete }) {
       const [filter, setFilter] = useState('upcoming');
+      const [rescheduleSession, setRescheduleSession] = useState(null);
+      const [noShowChoice, setNoShowChoice] = useState(null);
       const today = new Date().toISOString().split('T')[0];
+
       let filtered = sessions;
-      if (filter === 'upcoming') filtered = sessions.filter((s) => s.date >= today && s.status !== 'cancelled' && s.status !== 'completed');
+      if (filter === 'upcoming') filtered = sessions.filter((s) => s.date >= today && s.status !== 'cancelled' && s.status !== 'completed' && s.status !== 'no_show');
       else if (filter === 'completed') filtered = sessions.filter((s) => s.status === 'completed');
+      else if (filter === 'missed') filtered = sessions.filter((s) => s.status === 'no_show');
       else if (filter === 'cancelled') filtered = sessions.filter((s) => s.status === 'cancelled');
+      else if (filter === 'overdue') filtered = sessions.filter((s) => s.date < today && (!s.status || s.status === 'scheduled'));
+
       filtered = [...filtered].sort((a, b) => {
         const da = `${a.date} ${a.time || ''}`, db = `${b.date} ${b.time || ''}`;
         return filter === 'completed' ? db.localeCompare(da) : da.localeCompare(db);
       });
+
+      const overdueCount = sessions.filter((s) => s.date < today && (!s.status || s.status === 'scheduled')).length;
 
       return (
         <div className="space-y-3">
           <button onClick={onAdd} className="w-full bg-neutral-950 text-white rounded-2xl p-4 flex items-center justify-center gap-2 font-semibold active:scale-[0.98] transition">
             <Icon name="Plus" size={18} /> Schedule session
           </button>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {['upcoming', 'completed', 'cancelled', 'all'].map((f) => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition ${filter === f ? 'bg-neutral-950 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>{f}</button>
+
+          {overdueCount > 0 && filter !== 'overdue' && (
+            <button onClick={() => setFilter('overdue')} className="w-full bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between active:scale-[0.99]">
+              <div className="flex items-center gap-2">
+                <Icon name="AlertCircle" size={16} className="text-amber-700" />
+                <span className="text-sm font-semibold text-amber-900">{overdueCount} session{overdueCount > 1 ? 's' : ''} need{overdueCount === 1 ? 's' : ''} action</span>
+              </div>
+              <Icon name="ChevronRight" size={14} className="text-amber-700" />
+            </button>
+          )}
+
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {[
+              { id: 'upcoming', label: 'Upcoming' },
+              { id: 'overdue', label: `Overdue${overdueCount > 0 ? ` (${overdueCount})` : ''}` },
+              { id: 'completed', label: 'Completed' },
+              { id: 'missed', label: 'Missed' },
+              { id: 'cancelled', label: 'Cancelled' },
+              { id: 'all', label: 'All' },
+            ].map((f) => (
+              <button key={f.id} onClick={() => setFilter(f.id)} className={`px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition ${filter === f.id ? 'bg-neutral-950 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>{f.label}</button>
             ))}
           </div>
+
           {filtered.length === 0 ? (
             <div className="bg-white rounded-2xl p-8 text-center border border-stone-200 border-dashed">
               <Icon name="Calendar" size={28} className="text-stone-400 mb-2 mx-auto" />
@@ -937,26 +1062,50 @@
             </div>
           ) : filtered.map((s) => {
             const m = members.find((x) => x.id === s.memberId);
+            const isOverdue = s.date < today && (!s.status || s.status === 'scheduled');
             return (
-              <div key={s.id} className="bg-white rounded-2xl p-4 border border-stone-200">
+              <div key={s.id} className={`bg-white rounded-2xl p-4 border ${isOverdue ? 'border-amber-300 bg-amber-50/30' : 'border-stone-200'}`}>
                 <div className="flex items-start gap-3">
                   <div className="text-center min-w-[48px]">
-                    <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">{new Date(s.date).toLocaleDateString('en-IN', { month: 'short' })}</div>
+                    <div className={`text-[10px] uppercase tracking-wider font-semibold ${isOverdue ? 'text-amber-700' : 'text-stone-500'}`}>{new Date(s.date).toLocaleDateString('en-IN', { weekday: 'short' })}</div>
                     <div className="display-font text-2xl font-semibold text-neutral-900 leading-tight">{new Date(s.date).getDate()}</div>
-                    <div className="text-[10px] text-stone-500">{s.time || '—'}</div>
+                    <div className="text-[10px] text-stone-500">{new Date(s.date).toLocaleDateString('en-IN', { month: 'short' })}</div>
+                    <div className="text-[10px] text-stone-600 font-semibold mt-0.5">{s.time || '—'}</div>
                   </div>
-                  <div className="w-px h-14 bg-stone-200" />
+                  <div className="w-px h-16 bg-stone-200" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-neutral-900 truncate">{m?.name || 'Unknown'}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-neutral-900 truncate">{m?.name || 'Unknown'}</div>
+                      {s.recurring && <Icon name="Repeat" size={11} className="text-stone-400" />}
+                    </div>
                     {s.location && <div className="text-xs text-stone-500 flex items-center gap-1 mt-0.5"><Icon name="MapPin" size={11} /> {s.location}</div>}
                     {s.notes && <div className="text-xs text-stone-600 mt-1 italic">"{s.notes}"</div>}
-                    <div className="flex items-center gap-2 mt-2">
-                      {s.status === 'completed' ? <div className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-semibold uppercase tracking-wider">Completed</div>
-                      : s.status === 'cancelled' ? <div className="px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full text-[10px] font-semibold uppercase tracking-wider">Cancelled</div>
-                      : <>
-                          <button onClick={() => onComplete(s)} className="px-3 py-1 bg-neutral-950 text-white rounded-full text-[11px] font-semibold active:scale-95 transition">Mark done</button>
-                          <button onClick={() => onCancel(s)} className="px-3 py-1 bg-stone-100 text-stone-600 rounded-full text-[11px] font-semibold active:scale-95 transition">Cancel</button>
-                        </>}
+
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      {s.status === 'completed' && <div className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-semibold uppercase tracking-wider">Completed</div>}
+                      {s.status === 'cancelled' && <div className="px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full text-[10px] font-semibold uppercase tracking-wider">Cancelled</div>}
+                      {s.status === 'no_show' && (
+                        <div className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${s.billable ? 'bg-amber-100 text-amber-800' : 'bg-stone-100 text-stone-500'}`}>
+                          No-show {s.billable ? '· Billed' : '· Free pass'}
+                        </div>
+                      )}
+                      {(!s.status || s.status === 'scheduled') && (
+                        <>
+                          <button onClick={() => onComplete(s)} className="px-3 py-1 bg-neutral-950 text-white rounded-full text-[11px] font-semibold active:scale-95 transition flex items-center gap-1">
+                            <Icon name="Check" size={11} strokeWidth={3} /> Done
+                          </button>
+                          <button onClick={() => setNoShowChoice(s)} className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-[11px] font-semibold active:scale-95 transition">No-show</button>
+                          <button onClick={() => setRescheduleSession(s)} className="px-3 py-1 bg-stone-100 text-stone-700 rounded-full text-[11px] font-semibold active:scale-95 transition flex items-center gap-1">
+                            <Icon name="CalendarClock" size={11} /> Reschedule
+                          </button>
+                          <button onClick={() => onCancel(s)} className="px-3 py-1 text-stone-500 rounded-full text-[11px] font-semibold active:bg-stone-100 transition">Cancel</button>
+                        </>
+                      )}
+                      {(s.status === 'cancelled' || s.status === 'no_show') && (
+                        <button onClick={() => setRescheduleSession(s)} className="px-3 py-1 bg-stone-900 text-white rounded-full text-[11px] font-semibold active:scale-95 transition flex items-center gap-1">
+                          <Icon name="CalendarClock" size={11} /> Reschedule
+                        </button>
+                      )}
                       <button onClick={() => onDelete(s.id)} className="ml-auto text-stone-400 active:text-red-500"><Icon name="Trash2" size={14} /></button>
                     </div>
                   </div>
@@ -964,6 +1113,83 @@
               </div>
             );
           })}
+
+          {noShowChoice && (
+            <NoShowDialog session={noShowChoice}
+              member={members.find((x) => x.id === noShowChoice.memberId)}
+              onChoose={(billable) => { onNoShow(noShowChoice, billable); setNoShowChoice(null); }}
+              onReschedule={() => { setRescheduleSession(noShowChoice); setNoShowChoice(null); }}
+              onClose={() => setNoShowChoice(null)} />
+          )}
+
+          {rescheduleSession && (
+            <RescheduleDialog session={rescheduleSession}
+              onSave={(date, time) => { onReschedule(rescheduleSession, date, time); setRescheduleSession(null); }}
+              onClose={() => setRescheduleSession(null)} />
+          )}
+        </div>
+      );
+    }
+
+    function NoShowDialog({ session, member, onChoose, onReschedule, onClose }) {
+      const isPerSession = member?.billingMode === 'per_session';
+      const rate = Number(member?.sessionRate || 0);
+      return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={onClose}>
+          <div className="bg-stone-50 rounded-t-3xl w-full slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+              <h2 className="display-font text-xl font-semibold text-neutral-900">Mark as no-show</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="text-sm text-stone-600">
+                <span className="font-semibold text-neutral-900">{member?.name}</span> didn't show up for the session on {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}.
+              </div>
+
+              <button onClick={() => onReschedule()} className="w-full bg-white border border-stone-200 rounded-2xl p-4 text-left active:bg-stone-50 transition flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-neutral-900 text-sm flex items-center gap-2"><Icon name="CalendarClock" size={14} /> Reschedule instead</div>
+                  <div className="text-xs text-stone-500 mt-0.5">Move this session to another day</div>
+                </div>
+                <Icon name="ChevronRight" size={16} className="text-stone-400" />
+              </button>
+
+              <button onClick={() => onChoose(true)} className="w-full bg-amber-100 border border-amber-200 rounded-2xl p-4 text-left active:bg-amber-200 transition">
+                <div className="font-semibold text-amber-900 text-sm flex items-center gap-2"><Icon name="IndianRupee" size={14} /> Bill it</div>
+                <div className="text-xs text-amber-800 mt-0.5">
+                  {isPerSession ? `Counts toward dues (+₹${rate.toLocaleString('en-IN')})` : 'Counts toward session total'}
+                </div>
+              </button>
+
+              <button onClick={() => onChoose(false)} className="w-full bg-white border border-stone-200 rounded-2xl p-4 text-left active:bg-stone-50 transition">
+                <div className="font-semibold text-neutral-900 text-sm flex items-center gap-2"><Icon name="Gift" size={14} /> Free pass</div>
+                <div className="text-xs text-stone-500 mt-0.5">Skip — don't bill, doesn't count toward sessions</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function RescheduleDialog({ session, onSave, onClose }) {
+      const [date, setDate] = useState(session.date);
+      const [time, setTime] = useState(session.time || '07:00');
+      return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={onClose}>
+          <div className="bg-stone-50 rounded-t-3xl w-full slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+              <h2 className="display-font text-xl font-semibold text-neutral-900">Reschedule</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="text-xs text-stone-500">Original: {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })} · {session.time}</div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="New date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-input" /></Field>
+                <Field label="New time"><input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="form-input" /></Field>
+              </div>
+              <button onClick={() => onSave(date, time)} className="w-full bg-neutral-950 text-white rounded-2xl py-4 font-semibold active:scale-[0.98] transition">Confirm reschedule</button>
+            </div>
+          </div>
         </div>
       );
     }
@@ -1125,17 +1351,29 @@
     }
 
     function MemberForm({ member, existingPhones = [], onSave, onClose }) {
+      const isNew = !member;
       const [form, setForm] = useState(member || {
         name: '', phone: '', location: '',
-        billingMode: 'package', // 'package' or 'per_session'
+        billingMode: 'package',
         packageType: 'Monthly', packageAmount: '',
         sessionRate: '', sessionsPerWeek: '',
         packageStart: new Date().toISOString().split('T')[0], packageEnd: '',
-        sessionsTotal: '', notes: ''
+        sessionsTotal: '', pastSessions: '',
+        scheduleDays: [1, 3, 5], // Mon, Wed, Fri default
+        scheduleTime: '07:00',
+        autoGenerate: true,
+        notes: ''
       });
       const [phoneError, setPhoneError] = useState('');
       const [saving, setSaving] = useState(false);
       const isPerSession = form.billingMode === 'per_session';
+      const scheduleDays = form.scheduleDays || [];
+
+      const toggleDay = (v) => {
+        const cur = new Set(scheduleDays);
+        if (cur.has(v)) cur.delete(v); else cur.add(v);
+        setForm({ ...form, scheduleDays: [...cur].sort() });
+      };
 
       const handleSubmit = async () => {
         if (!form.name?.trim()) { alert('Name is required'); return; }
@@ -1201,6 +1439,55 @@
                 <Field label={isPerSession ? "Started on" : "Package start"}><input type="date" value={form.packageStart} onChange={(e) => setForm({ ...form, packageStart: e.target.value })} className="form-input" /></Field>
                 <Field label={isPerSession ? "Until (optional)" : "Package end"}><input type="date" value={form.packageEnd} onChange={(e) => setForm({ ...form, packageEnd: e.target.value })} className="form-input" /></Field>
               </div>
+
+              {/* Past sessions backfill — shown for new members or always editable */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <div className="flex items-start gap-2">
+                  <Icon name="History" size={14} className="text-amber-700 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold text-amber-900 uppercase tracking-wider">Past sessions already completed</div>
+                    <div className="text-[10px] text-amber-700 mt-0.5 mb-2">Counts toward billing but won't appear in session history. Use this if the member already trained before being added.</div>
+                    <input type="number" inputMode="numeric" min="0" value={form.pastSessions || ''}
+                      onChange={(e) => setForm({ ...form, pastSessions: e.target.value })}
+                      className="form-input bg-white" placeholder="e.g. 4" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Weekly schedule */}
+              <div className="bg-white border border-stone-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="text-xs font-bold text-neutral-900 uppercase tracking-wider">Weekly schedule</div>
+                    <div className="text-[10px] text-stone-500 mt-0.5">Pick training days · Sunday closed</div>
+                  </div>
+                </div>
+                <div className="flex gap-1.5 justify-between">
+                  {DAYS.map((d) => {
+                    const on = scheduleDays.includes(d.v);
+                    return (
+                      <button key={d.v} type="button" onClick={() => toggleDay(d.v)}
+                        className={`flex-1 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition ${on ? 'bg-neutral-950 text-amber-400' : 'bg-stone-100 text-stone-500'}`}>
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-3">
+                  <label className="block text-[10px] uppercase tracking-wider text-stone-500 font-bold mb-1.5">Session time</label>
+                  <input type="time" value={form.scheduleTime || '07:00'} onChange={(e) => setForm({ ...form, scheduleTime: e.target.value })} className="form-input" />
+                </div>
+
+                {isNew && scheduleDays.length > 0 && (
+                  <label className="mt-3 flex items-center gap-2 text-xs text-neutral-700 cursor-pointer">
+                    <input type="checkbox" checked={!!form.autoGenerate}
+                      onChange={(e) => setForm({ ...form, autoGenerate: e.target.checked })}
+                      className="w-4 h-4 rounded border-stone-300" />
+                    <span>Auto-create sessions for these days until {form.packageEnd ? new Date(form.packageEnd).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : 'next 8 weeks'}</span>
+                  </label>
+                )}
+              </div>
+
               <Field label="Notes"><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="form-input" rows={2} placeholder="Anything to remember..." /></Field>
               <button onClick={handleSubmit} disabled={saving} className="w-full bg-neutral-950 text-white rounded-2xl py-4 font-semibold active:scale-[0.98] transition disabled:opacity-60">
                 {saving ? 'Saving…' : (member ? 'Save changes' : 'Add member')}
@@ -1358,7 +1645,15 @@
                 <Row label="Location" value={member.location || '—'} />
                 {member.packageStart && <Row label="Start" value={new Date(member.packageStart).toLocaleDateString('en-IN')} />}
                 {member.packageEnd && <Row label="End" value={new Date(member.packageEnd).toLocaleDateString('en-IN')} />}
-                {!isPerSession && member.sessionsTotal && <Row label="Sessions" value={`${stats.sessionsCompleted} / ${member.sessionsTotal}`} />}
+                {!isPerSession && member.sessionsTotal && <Row label="Sessions" value={`${stats.billableSessions} / ${member.sessionsTotal}`} />}
+                {member.scheduleDays && member.scheduleDays.length > 0 && (
+                  <Row label="Schedule" value={
+                    <span>
+                      {member.scheduleDays.map((d) => DAYS.find((x) => x.v === d)?.label).filter(Boolean).join(' · ')}
+                      {member.scheduleTime && <span className="text-stone-500"> @ {member.scheduleTime}</span>}
+                    </span>
+                  } />
+                )}
                 {member.notes && <Row label="Notes" value={member.notes} />}
               </div>
 
@@ -1367,7 +1662,7 @@
                 <div className="bg-white rounded-xl p-3 border border-stone-200">
                   <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Charged</div>
                   <div className="display-font text-lg font-semibold text-neutral-900 mt-0.5">₹{stats.totalCharged.toLocaleString('en-IN')}</div>
-                  {isPerSession && <div className="text-[10px] text-stone-500">{stats.sessionsCompleted} × ₹{Number(member.sessionRate || 0)}</div>}
+                  {isPerSession && <div className="text-[10px] text-stone-500">{stats.billableSessions} × ₹{Number(member.sessionRate || 0)}</div>}
                 </div>
                 <div className="bg-white rounded-xl p-3 border border-stone-200">
                   <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Paid</div>
@@ -1381,7 +1676,14 @@
                 </div>
                 <div className="bg-white rounded-xl p-3 border border-stone-200">
                   <div className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Sessions done</div>
-                  <div className="display-font text-lg font-semibold text-neutral-900 mt-0.5">{stats.sessionsCompleted}</div>
+                  <div className="display-font text-lg font-semibold text-neutral-900 mt-0.5">{stats.billableSessions}</div>
+                  {(stats.pastSessions > 0 || stats.noShowBillable > 0) && (
+                    <div className="text-[10px] text-stone-500 mt-0.5">
+                      {stats.sessionsCompleted} live
+                      {stats.pastSessions > 0 && ` · ${stats.pastSessions} prior`}
+                      {stats.noShowBillable > 0 && ` · ${stats.noShowBillable} no-show`}
+                    </div>
+                  )}
                 </div>
               </div>
 
