@@ -67,18 +67,18 @@
 
     // ⚠️ REPLACE THESE WITH YOUR OWN FIREBASE PROJECT CONFIG
     const firebaseConfig = {
-      apiKey: "AIzaSyDWSjn_sKN7sRiMUb5gc7g1hfi8qksk5xw",
-      authDomain: "stayfit-app-95f0c.firebaseapp.com",
-      projectId: "stayfit-app-95f0c",
-      storageBucket: "stayfit-app-95f0c.firebasestorage.app",
-      messagingSenderId: "503264118557",
-      appId: "1:503264118557:web:94ed475ac770fc1aef03f4"
+      apiKey: "REPLACE_WITH_YOUR_API_KEY",
+      authDomain: "REPLACE.firebaseapp.com",
+      projectId: "REPLACE_PROJECT_ID",
+      storageBucket: "REPLACE.appspot.com",
+      messagingSenderId: "REPLACE",
+      appId: "REPLACE"
     };
 
     // ⚠️ TRAINER PIN — change this to whatever you want before deploying.
     // Only people who know this PIN can access the trainer view.
     // Members never need to enter it; they only enter their phone number.
-    window.TRAINER_PIN = "8850";
+    window.TRAINER_PIN = "1234";
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -105,7 +105,7 @@
     }
   </script>
 
-  <script type="text/babel" data-type="module">
+  <script type="text/babel" data-presets="react,env">
     const { useState, useEffect } = React;
 
     // Wait for Firebase to initialize
