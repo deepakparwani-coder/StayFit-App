@@ -25,8 +25,16 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Babel for JSX (development; can be removed if precompiled) -->
+  <!-- Babel for JSX (in-browser compilation) -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    // Force classic JSX runtime (avoids "react/jsx-runtime" module errors)
+    if (window.Babel) {
+      Babel.registerPreset('react-classic', {
+        presets: [[Babel.availablePresets['react'], { runtime: 'classic' }]]
+      });
+    }
+  </script>
 
   <!-- Lucide icons -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
@@ -67,12 +75,12 @@
 
     // ⚠️ REPLACE THESE WITH YOUR OWN FIREBASE PROJECT CONFIG
     const firebaseConfig = {
-    apiKey: "AIzaSyDWSjn_sKN7sRiMUb5gc7g1hfi8qksk5xw",
-    authDomain: "stayfit-app-95f0c.firebaseapp.com",
-    projectId: "stayfit-app-95f0c",
-    storageBucket: "stayfit-app-95f0c.firebasestorage.app",
-    messagingSenderId: "503264118557",
-    appId: "1:503264118557:web:94ed475ac770fc1aef03f4"  }; 
+      apiKey: "AIzaSyDWSjn_sKN7sRiMUb5gc7g1hfi8qksk5xw",
+  authDomain: "stayfit-app-95f0c.firebaseapp.com",
+  projectId: "stayfit-app-95f0c",
+  storageBucket: "stayfit-app-95f0c.firebasestorage.app",
+  messagingSenderId: "503264118557",
+  appId: "1:503264118557:web:94ed475ac770fc1aef03f4"
     };
 
     // ⚠️ TRAINER PIN — change this to whatever you want before deploying.
@@ -105,7 +113,7 @@
     }
   </script>
 
-  <script type="text/babel" data-presets="react,env">
+  <script type="text/babel" data-presets="react-classic,env">
     const { useState, useEffect } = React;
 
     // Wait for Firebase to initialize
