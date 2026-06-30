@@ -1,6 +1,6 @@
 // Stay Fit service worker
 // Bump CACHE_NAME on every release so old caches are purged
-const CACHE_NAME = 'stayfit-v5';
+const CACHE_NAME = 'stayfit-v6';
 const CORE_ASSETS = [
   './',
   './index.html',

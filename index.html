@@ -75,18 +75,17 @@
 
     // ⚠️ REPLACE THESE WITH YOUR OWN FIREBASE PROJECT CONFIG
     const firebaseConfig = {
-      apiKey: "AIzaSyDWSjn_sKN7sRiMUb5gc7g1hfi8qksk5xw",
-  authDomain: "stayfit-app-95f0c.firebaseapp.com",
-  projectId: "stayfit-app-95f0c",
-  storageBucket: "stayfit-app-95f0c.firebasestorage.app",
-  messagingSenderId: "503264118557",
-  appId: "1:503264118557:web:94ed475ac770fc1aef03f4"
+      apiKey: "REPLACE_WITH_YOUR_API_KEY",
+      authDomain: "REPLACE.firebaseapp.com",
+      projectId: "REPLACE_PROJECT_ID",
+      storageBucket: "REPLACE.appspot.com",
+      messagingSenderId: "REPLACE",
+      appId: "REPLACE"
     };
 
-    // ⚠️ TRAINER PIN — change this to whatever you want before deploying.
-    // Only people who know this PIN can access the trainer view.
-    // Members never need to enter it; they only enter their phone number.
-    window.TRAINER_PIN = "1234";
+    // TRAINER PIN is now stored in Firebase (collection: settings, doc: trainer_pin)
+    // The first person to open the app sets it via the in-app setup screen.
+    // To reset a forgotten PIN: Firebase Console → Firestore → settings → delete the trainer_pin document.
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -143,6 +142,20 @@
           snap.forEach((d) => items.push({ id: d.id, ...d.data() }));
           callback(items);
         }, (err) => console.error(`Listen error on ${name}:`, err));
+      },
+      // Subscribe to a single document (e.g. settings/trainer_pin)
+      onDoc(collectionName, docId, callback) {
+        const { doc, onSnapshot } = fb();
+        return onSnapshot(doc(db(), collectionName, docId), (snap) => {
+          if (snap.exists()) callback({ id: snap.id, ...snap.data() });
+          else callback(null);
+        }, (err) => console.error(`Listen error on ${collectionName}/${docId}:`, err));
+      },
+      async saveDoc(collectionName, docId, data) {
+        const { doc, setDoc } = fb();
+        const payload = { ...data, trainerId: TRAINER_ID };
+        await setDoc(doc(db(), collectionName, docId), payload);
+        return payload;
       },
       async save(name, item) {
         const { doc, setDoc } = fb();
@@ -239,6 +252,8 @@
       const [sessions, setSessions] = useState([]);
       const [payments, setPayments] = useState([]);
       const [measurements, setMeasurements] = useState([]);
+      const [settings, setSettings] = useState(null); // { trainerPin } | null
+      const [settingsLoaded, setSettingsLoaded] = useState(false);
       const [loading, setLoading] = useState(true);
 
       useEffect(() => {
@@ -255,13 +270,17 @@
         const u2 = Storage.onCollection('sessions', setSessions);
         const u3 = Storage.onCollection('payments', setPayments);
         const u4 = Storage.onCollection('measurements', setMeasurements);
+        const u5 = Storage.onDoc('settings', 'trainer_pin', (doc) => {
+          setSettings(doc); // null if not yet set
+          setSettingsLoaded(true);
+        });
         try {
           const saved = JSON.parse(localStorage.getItem('app:mode') || 'null');
           if (saved?.mode === 'trainer') setMode('trainer');
           else if (saved?.mode === 'member' && saved.phone) { setMode('member'); setMemberPhone(saved.phone); }
         } catch (e) {}
         setLoading(false);
-        return () => { u1(); u2(); u3(); u4(); };
+        return () => { u1(); u2(); u3(); u4(); u5(); };
       }, [authReady]);
 
       const persistMode = (m, phone = '') => {
@@ -272,7 +291,11 @@
       const enterMember = (phone) => { setMode('member'); setMemberPhone(phone); persistMode('member', phone); };
       const exitMode = () => { setMode(null); setMemberPhone(''); persistMode(''); };
 
-      if (!authReady || loading) {
+      const saveTrainerPin = async (pin) => {
+        await Storage.saveDoc('settings', 'trainer_pin', { pin, updatedAt: new Date().toISOString() });
+      };
+
+      if (!authReady || loading || !settingsLoaded) {
         return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-neutral-900 to-black" />
@@ -286,21 +309,24 @@
         );
       }
 
-      if (mode === null) return <RoleSelect members={members} onTrainer={enterTrainer} onMember={enterMember} />;
+      if (mode === null) return <RoleSelect members={members} settings={settings} saveTrainerPin={saveTrainerPin} onTrainer={enterTrainer} onMember={enterMember} />;
       if (mode === 'trainer') {
-        return <TrainerApp members={members} sessions={sessions} payments={payments} measurements={measurements} onExit={exitMode} />;
+        return <TrainerApp members={members} sessions={sessions} payments={payments} measurements={measurements} settings={settings} saveTrainerPin={saveTrainerPin} onExit={exitMode} />;
       }
       return <MemberApp phone={memberPhone} members={members} sessions={sessions} payments={payments} measurements={measurements} onExit={exitMode} />;
     }
 
     // ===== Role Select =====
-    function RoleSelect({ members, onTrainer, onMember }) {
+    function RoleSelect({ members, settings, saveTrainerPin, onTrainer, onMember }) {
       const [showMemberLogin, setShowMemberLogin] = useState(false);
       const [showTrainerLogin, setShowTrainerLogin] = useState(false);
+      const [showTrainerSetup, setShowTrainerSetup] = useState(false);
       const [pin, setPin] = useState('');
       const [pinError, setPinError] = useState('');
       const [phone, setPhone] = useState('');
       const [error, setError] = useState('');
+
+      const pinIsSet = !!(settings && settings.pin);
 
       const handleMemberLogin = () => {
         const cleaned = phone.replace(/[^0-9]/g, '');
@@ -312,7 +338,7 @@
       };
 
       const handleTrainerLogin = () => {
-        if (pin === window.TRAINER_PIN) {
+        if (settings && pin === settings.pin) {
           setShowTrainerLogin(false);
           setPin('');
           setPinError('');
@@ -346,11 +372,15 @@
             </div>
 
             <div className="w-full max-w-sm mt-10 space-y-3">
-              <button onClick={() => { setShowTrainerLogin(true); setPin(''); setPinError(''); }} className="w-full bg-amber-400 text-neutral-900 rounded-2xl p-5 flex items-center justify-between active:scale-[0.98] transition glow-amber">
+              <button onClick={() => {
+                  setPin(''); setPinError('');
+                  if (pinIsSet) setShowTrainerLogin(true);
+                  else setShowTrainerSetup(true);
+                }} className="w-full bg-amber-400 text-neutral-900 rounded-2xl p-5 flex items-center justify-between active:scale-[0.98] transition glow-amber">
                 <div className="text-left">
                   <div className="text-[10px] uppercase tracking-[0.2em] text-neutral-800 font-bold">I'm the</div>
                   <div className="display-font text-2xl font-semibold mt-0.5">Trainer</div>
-                  <div className="text-xs text-neutral-700 mt-0.5">Manage members, sessions & payments</div>
+                  <div className="text-xs text-neutral-700 mt-0.5">{pinIsSet ? 'Manage members, sessions & payments' : 'First time? Tap to set up your PIN'}</div>
                 </div>
                 <Icon name="ChevronRight" size={24} className="text-neutral-900" />
               </button>
@@ -414,10 +444,79 @@
                     {pinError && <div className="text-xs text-red-600 mt-2 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> {pinError}</div>}
                   </div>
                   <button onClick={handleTrainerLogin} className="w-full bg-amber-400 text-neutral-900 rounded-2xl py-4 font-semibold active:scale-[0.98] transition">Unlock</button>
+                  <details className="text-xs text-stone-500">
+                    <summary className="cursor-pointer font-medium hover:text-stone-700">Forgot your PIN?</summary>
+                    <div className="mt-2 text-[11px] leading-relaxed pl-2 border-l-2 border-stone-200">
+                      Open your Firebase Console → Firestore Database → <code className="bg-stone-100 px-1 rounded">settings</code> collection → delete the <code className="bg-stone-100 px-1 rounded">trainer_pin</code> document. Then come back and tap "I'm the Trainer" — you'll be prompted to set a new PIN.
+                    </div>
+                  </details>
                 </div>
               </div>
             </div>
           )}
+
+          {showTrainerSetup && (
+            <TrainerSetupModal
+              onSave={async (newPin) => {
+                await saveTrainerPin(newPin);
+                setShowTrainerSetup(false);
+                onTrainer();
+              }}
+              onClose={() => setShowTrainerSetup(false)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // ===== Trainer Setup Modal (first-time PIN creation) =====
+    function TrainerSetupModal({ onSave, onClose }) {
+      const [pin1, setPin1] = useState('');
+      const [pin2, setPin2] = useState('');
+      const [err, setErr] = useState('');
+      const [saving, setSaving] = useState(false);
+
+      const submit = async () => {
+        if (!pin1 || pin1.length < 4) { setErr('PIN must be at least 4 digits'); return; }
+        if (pin1 !== pin2) { setErr('PINs do not match'); return; }
+        setSaving(true);
+        try { await onSave(pin1); }
+        catch (e) { setErr('Save failed: ' + e.message); setSaving(false); }
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end" onClick={onClose}>
+          <div className="bg-stone-50 rounded-t-3xl w-full slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+              <h2 className="display-font text-xl font-semibold text-neutral-900">Set up Trainer PIN</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <div className="text-xs text-amber-900 leading-relaxed">
+                  <strong>This is the first time anyone has opened the app.</strong> Create a 4–8 digit PIN that you'll use to access the trainer view. Members won't need it — they only enter their phone number.
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">Create PIN</label>
+                <input type="password" inputMode="numeric" value={pin1}
+                  onChange={(e) => { setPin1(e.target.value); setErr(''); }}
+                  className="form-input text-center tracking-[0.5em] text-lg" placeholder="••••" autoFocus maxLength={8} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">Confirm PIN</label>
+                <input type="password" inputMode="numeric" value={pin2}
+                  onChange={(e) => { setPin2(e.target.value); setErr(''); }}
+                  onKeyDown={(e) => e.key === 'Enter' && submit()}
+                  className="form-input text-center tracking-[0.5em] text-lg" placeholder="••••" maxLength={8} />
+                {err && <div className="text-xs text-red-600 mt-2 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> {err}</div>}
+              </div>
+              <button onClick={submit} disabled={saving} className="w-full bg-amber-400 text-neutral-900 rounded-2xl py-4 font-semibold active:scale-[0.98] transition disabled:opacity-60">
+                {saving ? 'Saving…' : 'Set PIN & continue'}
+              </button>
+              <p className="text-[11px] text-stone-500 text-center">You can change this later from Settings inside the trainer view.</p>
+            </div>
+          </div>
         </div>
       );
     }
@@ -721,11 +820,12 @@
     }
 
     // ===== Trainer App =====
-    function TrainerApp({ members, sessions, payments, measurements, onExit }) {
+    function TrainerApp({ members, sessions, payments, measurements, settings, saveTrainerPin, onExit }) {
       const [view, setView] = useState('dashboard');
       const [showAddMember, setShowAddMember] = useState(false);
       const [showAddSession, setShowAddSession] = useState(false);
       const [showAddPayment, setShowAddPayment] = useState(false);
+      const [showSettings, setShowSettings] = useState(false);
       const [editingMember, setEditingMember] = useState(null);
       const [selectedMember, setSelectedMember] = useState(null);
 
@@ -814,9 +914,14 @@
                 <button onClick={onExit} className="flex items-center gap-1 text-xs text-neutral-400 font-medium active:text-white">
                   <Icon name="LogOut" size={14} /> Switch
                 </button>
-                <div className="flex items-center gap-2">
-                  <img src="logo-white.png" alt="Stay Fit" className="h-5 w-auto opacity-90" />
-                  <div className="text-[10px] uppercase tracking-[0.25em] text-amber-400 font-bold">Trainer</div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <img src="logo-white.png" alt="Stay Fit" className="h-5 w-auto opacity-90" />
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-amber-400 font-bold">Trainer</div>
+                  </div>
+                  <button onClick={() => setShowSettings(true)} className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-300 active:bg-neutral-700" aria-label="Settings">
+                    <Icon name="Settings" size={14} />
+                  </button>
                 </div>
               </div>
               <div className="flex items-end justify-between">
@@ -876,6 +981,112 @@
             onDeleteMeasurement={deleteMeasurement}
             onClose={() => setSelectedMember(null)}
           />}
+          {showSettings && (
+            <SettingsModal
+              settings={settings}
+              saveTrainerPin={saveTrainerPin}
+              onClose={() => setShowSettings(false)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // ===== Settings Modal (change PIN) =====
+    function SettingsModal({ settings, saveTrainerPin, onClose }) {
+      const [showPinChange, setShowPinChange] = useState(false);
+      const [currentPin, setCurrentPin] = useState('');
+      const [newPin, setNewPin] = useState('');
+      const [confirmPin, setConfirmPin] = useState('');
+      const [err, setErr] = useState('');
+      const [saving, setSaving] = useState(false);
+      const [savedOk, setSavedOk] = useState(false);
+
+      const submit = async () => {
+        if (!currentPin || currentPin !== (settings?.pin || '')) { setErr('Current PIN is incorrect'); return; }
+        if (!newPin || newPin.length < 4) { setErr('New PIN must be at least 4 digits'); return; }
+        if (newPin !== confirmPin) { setErr('New PINs do not match'); return; }
+        if (newPin === currentPin) { setErr('New PIN must be different from current'); return; }
+        setSaving(true);
+        try {
+          await saveTrainerPin(newPin);
+          setSavedOk(true);
+          setCurrentPin(''); setNewPin(''); setConfirmPin('');
+          setTimeout(() => { setSavedOk(false); setShowPinChange(false); }, 1500);
+        } catch (e) { setErr('Save failed: ' + e.message); }
+        setSaving(false);
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
+          <div className="bg-stone-50 rounded-t-3xl w-full max-h-[90vh] overflow-y-auto slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-stone-50 px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200">
+              <h2 className="display-font text-xl font-semibold text-neutral-900">Settings</h2>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center"><Icon name="X" size={16} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {!showPinChange ? (
+                <>
+                  <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+                    <button onClick={() => { setShowPinChange(true); setErr(''); }} className="w-full p-4 flex items-center justify-between active:bg-stone-50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-700">
+                          <Icon name="KeyRound" size={16} />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-semibold text-neutral-900 text-sm">Change Trainer PIN</div>
+                          <div className="text-xs text-stone-500">Currently set</div>
+                        </div>
+                      </div>
+                      <Icon name="ChevronRight" size={16} className="text-stone-400" />
+                    </button>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <div className="flex items-start gap-2">
+                      <Icon name="Info" size={14} className="text-amber-700 mt-0.5" />
+                      <div className="text-xs text-amber-900 leading-relaxed">
+                        <strong>Forgot your PIN?</strong> Open Firebase Console → Firestore → <code className="bg-amber-100 px-1 rounded">settings</code> collection → delete the <code className="bg-amber-100 px-1 rounded">trainer_pin</code> document. Then return to the app and set a new PIN.
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => { setShowPinChange(false); setErr(''); setCurrentPin(''); setNewPin(''); setConfirmPin(''); }} className="text-xs text-stone-600 font-medium flex items-center gap-1">
+                    <Icon name="ChevronLeft" size={14} /> Back
+                  </button>
+
+                  <div className="text-sm text-stone-600">Enter your current PIN, then choose a new one.</div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">Current PIN</label>
+                    <input type="password" inputMode="numeric" value={currentPin}
+                      onChange={(e) => { setCurrentPin(e.target.value); setErr(''); }}
+                      className="form-input text-center tracking-[0.5em] text-lg" placeholder="••••" autoFocus maxLength={8} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">New PIN</label>
+                    <input type="password" inputMode="numeric" value={newPin}
+                      onChange={(e) => { setNewPin(e.target.value); setErr(''); }}
+                      className="form-input text-center tracking-[0.5em] text-lg" placeholder="••••" maxLength={8} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">Confirm new PIN</label>
+                    <input type="password" inputMode="numeric" value={confirmPin}
+                      onChange={(e) => { setConfirmPin(e.target.value); setErr(''); }}
+                      onKeyDown={(e) => e.key === 'Enter' && submit()}
+                      className="form-input text-center tracking-[0.5em] text-lg" placeholder="••••" maxLength={8} />
+                    {err && <div className="text-xs text-red-600 mt-2 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> {err}</div>}
+                    {savedOk && <div className="text-xs text-emerald-700 mt-2 flex items-center gap-1"><Icon name="Check" size={12} /> PIN updated successfully</div>}
+                  </div>
+                  <button onClick={submit} disabled={saving || savedOk} className="w-full bg-neutral-950 text-white rounded-2xl py-4 font-semibold active:scale-[0.98] transition disabled:opacity-60">
+                    {saving ? 'Saving…' : savedOk ? 'Saved' : 'Update PIN'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       );
     }
